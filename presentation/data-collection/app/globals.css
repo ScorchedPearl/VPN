@@ -1,0 +1,14 @@
+@import "../styles/base.css";
+@import "../styles/tokens.css";
+
+/* Map Next/font variables into the theme tokens so the app fonts apply */
+:root {
+  --font-head: var(--font-geist-sans);
+  --font-body: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* Minimal body defaults (tokens.css + base.css provide the rest) */
+body {
+  margin: 0;
+}
