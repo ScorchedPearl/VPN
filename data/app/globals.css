@@ -1,5 +1,5 @@
-@import "../styles/base.css";
-@import "../styles/tokens.css";
+@import "./styles/tokens.css";
+@import "./styles/base.css";
 
 /* Map Next/font variables into the theme tokens so the app fonts apply */
 :root {
