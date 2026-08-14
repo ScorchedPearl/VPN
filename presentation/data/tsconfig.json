@@ -18,9 +18,9 @@
         "name": "next"
       }
     ],
-    "baseUrl": "../data",
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["../data/*"]
+      "@/*": ["./*"]
     }
   ,
     "ignoreDeprecations": "6.0"
@@ -28,12 +28,12 @@
     "forceConsistentCasingInFileNames": false
   },
   "include": [
-    "../data/next-env.d.ts",
-    "../data/**/*.ts",
-    "../data/**/*.tsx",
-    "../data/.next/types/**/*.ts",
-    "../data/.next/dev/types/**/*.ts",
-    "../data/**/*.mts"
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
   ],
-  "exclude": ["../data/node_modules"]
+  "exclude": ["node_modules"]
 }
