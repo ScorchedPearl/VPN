@@ -1,4 +1,5 @@
 export interface FingerprintData {
+  error?: string;
   userAgent: string;
   language: string;
   platform: string;
@@ -36,11 +37,12 @@ const FONTS_TO_CHECK = [
 ];
 
 function getInstalledFonts(): string[] {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return [];
+  try {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return [];
 
-  const text = "mmmmmmmmmmlli";
+    const text = "mmmmmmmmmmlli";
   const baseSize = 72;
   
   // Base fonts to compare against
@@ -70,7 +72,10 @@ function getInstalledFonts(): string[] {
     if (detected) installed.push(font);
   });
 
-  return installed;
+    return installed;
+  } catch (e) {
+    return [];
+  }
 }
 
 // 2. WebRTC Leak Detection
@@ -159,11 +164,15 @@ function hashString(str: string): string {
 }
 
 export async function generateClientFingerprint(): Promise<FingerprintData> {
-  const nav = window.navigator as any;
-  const webgl = getWebGLFingerprint();
-  const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  
-  // Fetch Geolocation and IP asynchronously
+  try {
+    const nav = window.navigator as any;
+    const webgl = getWebGLFingerprint();
+    let browserTimezone = 'Unknown';
+    try {
+      browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    } catch (e) {}
+    
+    // Fetch Geolocation and IP asynchronously
   let geoIp = null;
   try {
     const geoRes = await fetch('https://ipapi.co/json/');
@@ -220,4 +229,26 @@ export async function generateClientFingerprint(): Promise<FingerprintData> {
       webrtcLeak
     }
   };
+  } catch (err: any) {
+    console.error("Fingerprint generation failed", err);
+    return {
+      error: err.message || "Failed to generate fingerprint",
+      userAgent: 'Unknown',
+      language: 'Unknown',
+      platform: 'Unknown',
+      hardwareConcurrency: 'Unknown',
+      deviceMemory: 'Unknown',
+      colorDepth: 0,
+      screenResolution: 'Unknown',
+      timezone: 'Unknown',
+      canvasHash: 'Unknown',
+      webglVendor: 'Unknown',
+      webglRenderer: 'Unknown',
+      connection: 'Unknown',
+      fonts: [],
+      webrtcIps: [],
+      geoIp: null,
+      vpnSuspicion: { timezoneMismatch: false, webrtcLeak: false }
+    };
+  }
 }

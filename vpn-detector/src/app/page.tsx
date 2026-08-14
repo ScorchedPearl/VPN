@@ -18,12 +18,19 @@ export default function Home() {
     try {
       const cData = await generateClientFingerprint();
       setClientData(cData);
+    } catch (err) {
+      console.error("Client analysis failed", err);
+      setClientData({ error: 'Could not fetch client data' } as any);
+    }
 
+    try {
       const res = await fetch('/api/fingerprint');
+      if (!res.ok) throw new Error("Server fetch failed");
       const sData = await res.json();
       setServerData(sData);
     } catch (err) {
-      console.error("Analysis failed", err);
+      console.error("Server analysis failed", err);
+      setServerData({ error: 'Could not fetch server data' });
     } finally {
       setIsAnalyzing(false);
     }
@@ -90,20 +97,20 @@ export default function Home() {
               <div className="space-y-6">
                 
                 {/* Risk Analysis Panel */}
-                {clientData && (clientData.vpnSuspicion.timezoneMismatch || clientData.vpnSuspicion.webrtcLeak) && (
+                {clientData && !clientData.error && (clientData.vpnSuspicion?.timezoneMismatch || clientData.vpnSuspicion?.webrtcLeak) && (
                   <div className="bg-red-950/40 backdrop-blur-xl border border-red-900/50 rounded-2xl p-6 shadow-2xl">
                     <div className="flex items-center gap-3 mb-4 pb-2 border-b border-red-900/50">
                       <AlertTriangle className="w-6 h-6 text-red-500" />
                       <h2 className="text-xl font-bold text-red-400">Anomalies Detected</h2>
                     </div>
                     <div className="space-y-3">
-                      {clientData.vpnSuspicion.timezoneMismatch && (
+                      {clientData.vpnSuspicion?.timezoneMismatch && (
                         <div className="flex gap-2 text-red-200 bg-red-950/50 p-3 rounded-lg border border-red-900/30">
                           <AlertTriangle className="w-5 h-5 shrink-0 text-red-500" />
                           <p className="text-sm"><strong>Timezone Mismatch:</strong> The physical location of your IP address ({clientData.geoIp?.timezone}) does not match your browser's system timezone ({clientData.timezone}). This heavily indicates a VPN or Proxy is altering your IP location.</p>
                         </div>
                       )}
-                      {clientData.vpnSuspicion.webrtcLeak && (
+                      {clientData.vpnSuspicion?.webrtcLeak && (
                         <div className="flex gap-2 text-red-200 bg-red-950/50 p-3 rounded-lg border border-red-900/30">
                           <AlertTriangle className="w-5 h-5 shrink-0 text-red-500" />
                           <p className="text-sm"><strong>WebRTC IP Leak:</strong> We detected internal or leaked IP addresses via WebRTC ({clientData.webrtcIps.join(', ')}). This can bypass VPN tunnels and reveal your true network identity.</p>
@@ -119,15 +126,25 @@ export default function Home() {
                     <MapPin className="w-6 h-6 text-green-400" />
                     <h2 className="text-xl font-semibold text-white">Geolocation & Network</h2>
                   </div>
-                  {clientData?.geoIp ? (
+                  {!clientData && isAnalyzing ? (
+                    <SkeletonLoader />
+                  ) : clientData?.geoIp ? (
                     <div className="space-y-3">
                       <DataRow label="Public IP (Client Fetched)" value={clientData.geoIp.ip} highlight />
                       <DataRow label="Location" value={`${clientData.geoIp.city}, ${clientData.geoIp.country}`} />
                       <DataRow label="ISP / Org" value={clientData.geoIp.org} />
-                      <DataRow label="IP Timezone" value={clientData.geoIp.timezone} highlight={clientData.vpnSuspicion.timezoneMismatch} />
-                      <DataRow label="Browser Timezone" value={clientData.timezone} highlight={clientData.vpnSuspicion.timezoneMismatch} />
+                      <DataRow label="IP Timezone" value={clientData.geoIp.timezone} highlight={clientData.vpnSuspicion?.timezoneMismatch} />
+                      <DataRow label="Browser Timezone" value={clientData.timezone} highlight={clientData.vpnSuspicion?.timezoneMismatch} />
                     </div>
-                  ) : <SkeletonLoader />}
+                  ) : (
+                    <div className="space-y-3">
+                      <DataRow label="Public IP (Client Fetched)" value="Could not fetch" />
+                      <DataRow label="Location" value="Could not fetch" />
+                      <DataRow label="ISP / Org" value="Could not fetch" />
+                      <DataRow label="IP Timezone" value="Could not fetch" />
+                      <DataRow label="Browser Timezone" value={clientData?.timezone || "Could not fetch"} />
+                    </div>
+                  )}
                 </div>
 
                 {/* Server Headers Panel */}
@@ -136,19 +153,23 @@ export default function Home() {
                     <Server className="w-6 h-6 text-blue-400" />
                     <h2 className="text-xl font-semibold text-white">Server-Side Headers</h2>
                   </div>
-                  {serverData ? (
+                  {!serverData && isAnalyzing ? (
+                    <SkeletonLoader />
+                  ) : serverData && !serverData.error ? (
                     <div className="space-y-3">
-                      <DataRow label="Server-Seen IP" value={serverData.ip} />
-                      <DataRow label="X-Forwarded-For" value={serverData.headers['x-forwarded-for']} />
-                      <DataRow label="X-Real-IP" value={serverData.headers['x-real-ip']} />
+                      <DataRow label="Server-Seen IP" value={serverData.ip || 'Could not fetch'} />
+                      <DataRow label="X-Forwarded-For" value={serverData.headers?.['x-forwarded-for'] || 'None'} />
+                      <DataRow label="X-Real-IP" value={serverData.headers?.['x-real-ip'] || 'None'} />
                       <div className="mt-4 pt-4 border-t border-slate-800/50">
                         <h3 className="text-sm font-medium text-slate-500 mb-2">Client Hints (sec-ch-ua)</h3>
                         <pre className="text-xs text-cyan-200 bg-slate-950 p-3 rounded-lg overflow-x-auto border border-slate-800/50 font-mono">
-                          {serverData.headers['sec-ch-ua']}
+                          {serverData.headers?.['sec-ch-ua'] || 'None'}
                         </pre>
                       </div>
                     </div>
-                  ) : <SkeletonLoader />}
+                  ) : (
+                    <p className="text-sm text-red-400">Could not fetch server data.</p>
+                  )}
                 </div>
 
                 {/* WebRTC Panel */}
@@ -157,9 +178,11 @@ export default function Home() {
                     <Radio className="w-6 h-6 text-pink-400" />
                     <h2 className="text-xl font-semibold text-white">WebRTC Protocols</h2>
                   </div>
-                  {clientData ? (
+                  {!clientData && isAnalyzing ? (
+                    <SkeletonLoader />
+                  ) : clientData && !clientData.error ? (
                     <div className="space-y-3">
-                      {clientData.webrtcIps.length > 0 ? (
+                      {clientData.webrtcIps && clientData.webrtcIps.length > 0 ? (
                          <div className="flex flex-col gap-1">
                            <span className="text-sm font-medium text-slate-500">Leaked IPs</span>
                            <span className="text-sm text-red-400 font-mono font-bold bg-slate-950 p-2 rounded border border-red-900/50">
@@ -170,7 +193,9 @@ export default function Home() {
                         <p className="text-sm text-slate-400 italic">No WebRTC leaks detected.</p>
                       )}
                     </div>
-                  ) : <SkeletonLoader />}
+                  ) : (
+                    <p className="text-sm text-red-400">Could not fetch WebRTC data.</p>
+                  )}
                 </div>
 
               </div>
@@ -184,13 +209,17 @@ export default function Home() {
                     <Fingerprint className="w-6 h-6 text-purple-400" />
                     <h2 className="text-xl font-semibold text-white">Browser Fingerprint Engine</h2>
                   </div>
-                  {clientData ? (
+                  {!clientData && isAnalyzing ? (
+                    <SkeletonLoader />
+                  ) : clientData && !clientData.error ? (
                     <div className="space-y-3">
-                      <DataRow label="Canvas Hash" value={clientData.canvasHash} highlight />
-                      <DataRow label="WebGL Vendor" value={clientData.webglVendor} />
-                      <DataRow label="WebGL Renderer" value={clientData.webglRenderer} />
+                      <DataRow label="Canvas Hash" value={clientData.canvasHash || 'Could not fetch'} highlight />
+                      <DataRow label="WebGL Vendor" value={clientData.webglVendor || 'Could not fetch'} />
+                      <DataRow label="WebGL Renderer" value={clientData.webglRenderer || 'Could not fetch'} />
                     </div>
-                  ) : <SkeletonLoader />}
+                  ) : (
+                    <p className="text-sm text-red-400">Could not fetch fingerprint data.</p>
+                  )}
                 </div>
 
                 {/* Hardware */}
@@ -199,15 +228,19 @@ export default function Home() {
                     <Cpu className="w-6 h-6 text-amber-400" />
                     <h2 className="text-xl font-semibold text-white">Hardware Leaks</h2>
                   </div>
-                  {clientData ? (
+                  {!clientData && isAnalyzing ? (
+                    <SkeletonLoader />
+                  ) : clientData && !clientData.error ? (
                     <div className="space-y-3">
-                      <DataRow label="Platform" value={clientData.platform} />
-                      <DataRow label="CPU Cores" value={clientData.hardwareConcurrency} />
-                      <DataRow label="Device RAM (GB)" value={clientData.deviceMemory} />
-                      <DataRow label="Screen" value={clientData.screenResolution} />
-                      <DataRow label="Color Depth" value={clientData.colorDepth.toString() + ' bit'} />
+                      <DataRow label="Platform" value={clientData.platform || 'Could not fetch'} />
+                      <DataRow label="CPU Cores" value={clientData.hardwareConcurrency || 'Could not fetch'} />
+                      <DataRow label="Device RAM (GB)" value={clientData.deviceMemory || 'Could not fetch'} />
+                      <DataRow label="Screen" value={clientData.screenResolution || 'Could not fetch'} />
+                      <DataRow label="Color Depth" value={clientData.colorDepth ? clientData.colorDepth.toString() + ' bit' : 'Could not fetch'} />
                     </div>
-                  ) : <SkeletonLoader />}
+                  ) : (
+                    <p className="text-sm text-red-400">Could not fetch hardware data.</p>
+                  )}
                 </div>
 
                 {/* Fonts */}
@@ -216,16 +249,23 @@ export default function Home() {
                     <Type className="w-6 h-6 text-cyan-400" />
                     <h2 className="text-xl font-semibold text-white">Installed Fonts (Sample)</h2>
                   </div>
-                  {clientData ? (
+                  {!clientData && isAnalyzing ? (
+                    <SkeletonLoader />
+                  ) : clientData && !clientData.error ? (
                     <div className="flex flex-wrap gap-2">
-                      {clientData.fonts.map(font => (
-                        <span key={font} className="px-2 py-1 text-xs bg-slate-800 text-slate-300 rounded border border-slate-700">
-                          {font}
-                        </span>
-                      ))}
-                      {clientData.fonts.length === 0 && <span className="text-sm text-slate-500">Could not enumerate fonts.</span>}
+                      {clientData.fonts && clientData.fonts.length > 0 ? (
+                        clientData.fonts.map((font: string) => (
+                          <span key={font} className="px-2 py-1 text-xs bg-slate-800 text-slate-300 rounded border border-slate-700">
+                            {font}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm text-slate-500">Could not enumerate fonts.</span>
+                      )}
                     </div>
-                  ) : <SkeletonLoader />}
+                  ) : (
+                    <p className="text-sm text-red-400">Could not fetch fonts.</p>
+                  )}
                 </div>
 
               </div>

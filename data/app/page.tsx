@@ -153,6 +153,49 @@ export default function App() {
         </div>
       </Slide>
 
+      <Slide nav="Privacy browsers" notes="Explain that Brave and Tor are intentionally restrictive here, so the prototype should treat these failures as expected rather than broken.">
+        <div className="container">
+          <Reveal>
+            <div className="kicker" style={{ marginBottom: 12, textAlign: 'center' }}>Important caveat</div>
+            <h2 className="headline" style={{ marginBottom: 'clamp(20px, 3vh, 32px)', textAlign: 'center', marginInline: 'auto' }}>
+              Brave and Tor can <span className="accent-text">intentionally block</span> the signals.
+            </h2>
+            <p className="lead" style={{ margin: '0 auto clamp(24px, 4vh, 36px)', textAlign: 'center', maxWidth: 760 }}>
+              We figured out that the failure is not random: privacy-focused browsers and anonymity networks are designed to suppress the exact APIs this prototype uses.
+            </p>
+          </Reveal>
+
+          <div className="cols" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            <Reveal>
+              <div className="mat" style={{ ...cardStyle, minHeight: 300, display: 'flex', flexDirection: 'column', gap: 18 }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#ff9c66', borderColor: '#ff9c6655', background: '#ff9c6614' }}>WebRTC block</div>
+                <h3 style={{ fontSize: 24 }}>NotAllowedError: Failed to construct RTCPeerConnection</h3>
+                <p style={{ color: 'var(--fg-muted)', lineHeight: 1.6 }}>
+                  WebRTC can expose local and public IP details, so Brave and Tor restrict or disable it to prevent deanonymization. When the prototype tries to create a peer connection, the browser blocks it before any network details can be collected.
+                </p>
+                <div style={{ marginTop: 'auto', padding: 14, borderRadius: 12, background: '#120f09', color: '#ffd9b3', fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.6, border: '1px solid #ff9c6633' }}>
+                  Expected in privacy mode<br />
+                  Treat as a protected-browser signal, not a product bug.
+                </div>
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.1}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 300, display: 'flex', flexDirection: 'column', gap: 18 }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#30c9f4', borderColor: '#30c9f455', background: '#30c9f414' }}>Geolocation fetch failure</div>
+                <h3 style={{ fontSize: 24 }}>CORS policy / ERR_FAILED from ipapi.co</h3>
+                <p style={{ color: 'var(--fg-muted)', lineHeight: 1.6 }}>
+                  The request can fail because Brave and Tor use aggressive tracking protection, the Tor exit node may be blocked by the API, and stricter state isolation can interfere with third-party requests.
+                </p>
+                <div style={{ marginTop: 'auto', padding: 14, borderRadius: 12, background: '#091620', color: '#c6ebff', fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.6, border: '1px solid #30c9f433' }}>
+                  Privacy browsers may reject the request outright or return a generic network error.
+                </div>
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </Slide>
+
       <Slide full nav="Prototype demo" notes="This is the proof slide. Point first to the red anomaly panel, then trace the supporting evidence around it.">
         <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(70% 90% at 50% 48%, rgba(22, 44, 81, 0.72), transparent 70%), var(--bg)' }} />
         <div style={{ position: 'relative', zIndex: 1, width: 'min(92vw, 1120px)', margin: '0 auto' }}>
