@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VPN & Device Linkage Research Lab
 
-## Getting Started
+A consent-based research prototype for demonstrating:
 
-First, run the development server:
+- same-device similarity across repeated visits;
+- coarse cross-browser device comparison;
+- normal versus private/incognito observations;
+- continuity when an apparent public IP changes;
+- corrected WebRTC ICE candidate interpretation;
+- explainable VPN-compatible risk evidence.
+
+The app does **not** claim that a browser fingerprint proves a person, a physical device, or VPN use. Ground-truth labels are stored separately from the calculated score so the experiment can measure correct and incorrect matches.
+
+## Run the demo
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Three-minute presentation flow
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Leave the label as `demo-device-01`, select **Normal** and **VPN off**, then click **Capture & compare**. This establishes the baseline.
+2. Enable a VPN, select **VPN on**, and capture again. The page should show a high device-similarity score and an IP change. That continuity becomes one explainable VPN-compatible signal.
+3. Open the same deployed URL in another browser, private window, or physical device. Use the same controlled-device label when appropriate, select the correct mode, and capture. The shared PostgreSQL store lets the matcher compare this observation with the earlier baseline.
+4. Use a different physical machine with a different label to demonstrate an impostor comparison.
 
-## Learn More
+The matcher reads the 200 most recent observations from PostgreSQL. The application has no observation-deletion endpoint; dataset removal is restricted to database administrators.
 
-To learn more about Next.js, take a look at the following resources:
+## What is implemented
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- versioned fingerprint schema (`2.0.0`);
+- SHA-256 browser and coarse-device demonstration signatures;
+- missing-tolerant weighted similarity rather than one exact hash;
+- separate same-browser and cross-browser models;
+- per-component score explanations and research-label agreement;
+- browser/OS, CPU and memory buckets, screen, GPU family, canvas, WebGL, fonts, capabilities, timezone, and network observations;
+- typed WebRTC `host`, `srflx`, `relay`, and mDNS handling;
+- external egress enrichment through `ipapi.co` after the user initiates a scan;
+- first-party server network observation;
+- persistent Supabase PostgreSQL storage across browsers, devices, deployments, and server restarts;
+- explainable evidence for hosting networks, timezone mismatch, public WebRTC discrepancy, vantage-point disagreement, and stable-device/network-change continuity.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Verification
 
-## Deploy on Vercel
+```bash
+npm run lint
+npx next build --webpack
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The webpack build option is useful in restricted environments where Turbopack cannot open its temporary local worker port.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Important limitations
+
+- The database URL stays in `.env.local` and is used only by server-side code. Configure the same `DATABASE_URL` deployment secret when hosting the app.
+- JavaScript-derived fields can be modified or replayed and are not trusted attestation.
+- IP enrichment is heuristic and the free demo lookup is not a maintained anonymous-VPN database.
+- Private browsers may suppress, coarsen, or randomize fingerprint components.
+- Risk scores are research hypotheses that require calibration on a larger labelled dataset.
+
+See [BROWSER_FINGERPRINTING_RESEARCH.md](./BROWSER_FINGERPRINTING_RESEARCH.md) for the methodology, test matrix, papers, privacy controls, and production roadmap.

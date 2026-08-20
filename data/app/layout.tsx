@@ -3,8 +3,8 @@ import "./globals.css";
 import type { ReactNode } from 'react';
 
 export const metadata: Metadata = {
-  title: "VPN Detection Presentation Deck",
-  description: "Presentation deck for VPN detection prototype",
+  title: "VPN Detection Research · Weeks 1–2",
+  description: "Interactive research presentation covering the browser-fingerprinting VPN-risk prototype and Week 2 findings",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
