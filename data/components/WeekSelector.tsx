@@ -14,7 +14,7 @@ type Week = 'week1' | 'week2';
 function flattenSlides(children: ReactNode): ReactNode[] {
   return Children.toArray(children).flatMap((child) => {
     if (isValidElement(child) && child.type === Fragment) {
-      return flattenSlides(child.props.children);
+      return flattenSlides((child.props as { children?: ReactNode }).children);
     }
     return [child];
   });
