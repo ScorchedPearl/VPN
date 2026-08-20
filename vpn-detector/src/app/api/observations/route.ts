@@ -8,6 +8,17 @@ import { compareObservations } from "@/utils/similarity";
 
 export const dynamic = "force-dynamic";
 
+function logDatabaseError(operation: string, error: unknown) {
+  if (error instanceof Error) {
+    console.error(`[research-db] ${operation}: ${error.message}`, {
+      name: error.name,
+      code: "code" in error ? error.code : undefined,
+    });
+    return;
+  }
+  console.error(`[research-db] ${operation}:`, error);
+}
+
 function isObservation(value: unknown): value is ResearchObservation {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ResearchObservation>;
@@ -27,7 +38,8 @@ function isObservation(value: unknown): value is ResearchObservation {
 export async function GET() {
   try {
     return Response.json({ count: await observationCount(), backend: "postgresql" });
-  } catch {
+  } catch (error) {
+    logDatabaseError("count", error);
     return Response.json({ error: "Research database is unavailable" }, { status: 503 });
   }
 }
@@ -53,7 +65,8 @@ export async function POST(request: Request) {
     await saveObservation(observation);
     const count = await observationCount();
     return Response.json({ observation, matches, count, backend: "postgresql" });
-  } catch {
+  } catch (error) {
+    logDatabaseError("save", error);
     return Response.json({ error: "Could not store the research observation" }, { status: 503 });
   }
 }
