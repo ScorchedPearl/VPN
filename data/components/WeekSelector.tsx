@@ -1,9 +1,24 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import {
+  Children,
+  Fragment,
+  isValidElement,
+  useState,
+  type ReactNode,
+} from 'react';
 import Deck from '@/deck/Deck';
 
 type Week = 'week1' | 'week2';
+
+function flattenSlides(children: ReactNode): ReactNode[] {
+  return Children.toArray(children).flatMap((child) => {
+    if (isValidElement(child) && child.type === Fragment) {
+      return flattenSlides(child.props.children);
+    }
+    return [child];
+  });
+}
 
 export default function WeekSelector({
   weekOne,
@@ -34,7 +49,9 @@ export default function WeekSelector({
         </div>
       </div>
 
-      <Deck key={activeWeek}>{activeWeek === 'week1' ? weekOne : weekTwo}</Deck>
+      <Deck key={activeWeek}>
+        {flattenSlides(activeWeek === 'week1' ? weekOne : weekTwo)}
+      </Deck>
     </>
   );
 }
