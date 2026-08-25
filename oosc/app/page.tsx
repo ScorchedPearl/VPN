@@ -48,7 +48,7 @@ function QuestionSlide({ question, index }: { question: Question; index: number 
     <Slide nav={`Q${index + 1}`} notes={`Question ${index + 1}. Answer: ${question.answer}`}>
       <div className="container" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '100%' }}>
         <Reveal>
-          <div className="kicker" style={{ marginBottom: 14 }}>CPS Lock · Question {String(index + 1).padStart(2, '0')} / {questions.length}</div>
+          <div className="kicker" style={{ marginBottom: 14 }}>CAPS LOCK · Question {String(index + 1).padStart(2, '0')} / {questions.length}</div>
           <h2 className="headline" style={{ maxWidth: 980, marginBottom: 30 }}>{question.prompt}</h2>
         </Reveal>
         {question.options && (
@@ -60,12 +60,22 @@ function QuestionSlide({ question, index }: { question: Question; index: number 
             </div>
           </Reveal>
         )}
-        <Reveal delay={0.18}>
-          <div className="chip" style={{ marginTop: 26, width: 'fit-content', color: question.answer === 'Judges’ opinion' ? '#f2c94c' : '#62e6b7', borderColor: question.answer === 'Judges’ opinion' ? '#f2c94c55' : '#62e6b755', background: question.answer === 'Judges’ opinion' ? '#f2c94c14' : '#62e6b714', fontSize: 'clamp(14px, 1.4vw, 18px)', padding: '11px 16px' }}>
-            Answer: {question.answer}
-          </div>
-        </Reveal>
       </div>
+    </Slide>
+  );
+}
+
+function AnswerSlide({ question, index }: { question: Question; index: number }) {
+  const isJudgesOpinion = question.answer === 'Judges’ opinion';
+  return (
+    <Slide center nav={`Answer ${index + 1}`} notes={`Answer for question ${index + 1}: ${question.answer}`}>
+      <Reveal>
+        <div className="kicker" style={{ marginBottom: 18 }}>CAPS LOCK · Answer {String(index + 1).padStart(2, '0')}</div>
+        <h2 className="display" style={{ maxWidth: 930, marginInline: 'auto', fontSize: 'clamp(40px, 6.4vw, 84px)' }}>
+          {isJudgesOpinion ? <span className="accent-text">Judges’ opinion</span> : question.answer}
+        </h2>
+        {isJudgesOpinion && <p className="subhead" style={{ marginTop: 24 }}>The judges have the final call on this one.</p>}
+      </Reveal>
     </Slide>
   );
 }
@@ -76,12 +86,12 @@ export default function App() {
       <Cover
         nav="Cover"
         kicker="OOSC presents · IIIT Allahabad"
-        title={<>CPS <span className="accent-text">Lock</span></>}
+        title={<>CAPS <span className="accent-text">LOCK</span></>}
         subtitle="A fresher-friendly tech, campus, anime, and internet quiz. Lock in your answer."
         foot="OOSC · IIIT Allahabad"
       />
 
-      <Slide center nav="Rules" notes="Introduce CPS Lock and invite the audience to answer before revealing the judge’s decision.">
+      <Slide center nav="Rules" notes="Introduce CAPS LOCK and invite the audience to answer before revealing the judge’s decision.">
         <Reveal>
           <div className="kicker" style={{ marginBottom: 18 }}>How it works</div>
           <h2 className="display" style={{ maxWidth: 900, marginInline: 'auto', fontSize: 'clamp(42px, 7vw, 92px)' }}>
@@ -91,11 +101,14 @@ export default function App() {
         </Reveal>
       </Slide>
 
-      {questions.map((question, index) => <QuestionSlide key={question.prompt} question={question} index={index} />)}
+      {questions.flatMap((question, index) => [
+        <QuestionSlide key={`question-${question.prompt}`} question={question} index={index} />,
+        <AnswerSlide key={`answer-${question.prompt}`} question={question} index={index} />,
+      ])}
 
       <Slide center nav="Close" notes="Close the quiz and thank the participants.">
         <Reveal>
-          <div className="kicker" style={{ marginBottom: 18 }}>CPS Lock complete</div>
+          <div className="kicker" style={{ marginBottom: 18 }}>CAPS LOCK complete</div>
           <h2 className="display" style={{ maxWidth: 940, marginInline: 'auto', fontSize: 'clamp(42px, 7vw, 92px)' }}>
             You survived the quiz.<br /><span className="accent-text">Now survive the semester.</span>
           </h2>
