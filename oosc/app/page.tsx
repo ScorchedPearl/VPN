@@ -1,12 +1,14 @@
 import Deck from '@/deck/Deck';
 import Slide from '@/deck/Slide';
 import Cover from '@/components/Cover';
+import PasswordGate from '@/components/PasswordGate';
 import Reveal from '@/deck/Reveal';
 
 type Question = {
   prompt: string;
   options?: string[];
   answer: string;
+  answerLink?: string;
 };
 
 const questions: Question[] = [
@@ -18,6 +20,7 @@ const questions: Question[] = [
   { prompt: 'A pigeon is flying at full speed toward someone. Nobody survives that bird strike—except the sole exception of?', answer: 'Satoru Gojo' },
   { prompt: 'If a vampire bites a zombie, what happens?', options: ['A. The zombie becomes a vampire', 'B. The vampire becomes a zombie', 'C. Nothing, because biology has resigned', 'D. They both need therapy'], answer: 'C. Nothing, because biology has resigned' },
   { prompt: 'What is the strongest authentication mechanism?', options: ['A. Password', 'B. OTP', 'C. Biometrics', 'D. “Bro I know the senior who manages it”'], answer: 'D. “Bro I know the senior who manages it”' },
+  { prompt: 'What happens when you burn a Coca-Cola?', answer: 'Watch the answer reel', answerLink: 'https://www.instagram.com/reel/DanD8l9MwJq/?igsi=YjhiM254d2VmN25j' },
   { prompt: 'What is “technical debt”?', options: ['A. Bad design that makes future changes harder', 'B. Money borrowed to buy a laptop', 'C. Your unpaid hostel mess bill', 'D. The 17 TODOs you promised to fix “later”'], answer: 'A / D — depending on how your project is going.' },
   { prompt: 'What is the most important skill an engineering student develops?', options: ['A. Programming', 'B. Problem solving', 'C. Time management', 'D. Doing 3 weeks of work in 7 hours'], answer: 'D. Doing 3 weeks of work in 7 hours' },
   { prompt: 'What is the universal solution to a Wi-Fi problem?', options: ['A. Fuck The Proxy', 'B. Restart laptop', 'C. Reconnect Wi-Fi', 'D. Blame the network administrator'], answer: 'D. Blame the network administrator' },
@@ -30,6 +33,7 @@ const questions: Question[] = [
   { prompt: 'Final question: you are now officially a fresher at IIITA. What is your current plan?', options: ['A. Rangtarangini join karunga.', 'B. Complete DSA, CP and everything.', 'C. Seniors ko set karna.', 'D. GeekHaven join karunga.'], answer: 'All are valid 😂' },
   { prompt: 'You accidentally push directly to main. What do you do?', options: ['A. Pretend nothing happened', 'B. Tell your team immediately', 'C. Delete your GitHub account', 'D. Change your name and move to another country'], answer: 'B. Tell your team immediately 😂' },
   { prompt: 'What does this commit message mean? atmkbfj', options: ['A. Important update', 'B. Keyboard testing', 'C. Developer gave up', 'D. Production-ready code'], answer: 'Judges’ opinion' },
+  { prompt: 'What happens when you press the accelerator and brake together in a car?', answer: 'Watch the answer reel', answerLink: 'https://www.instagram.com/reel/Db09qqcPagb/?igsi=bWw3NXphM25wbGlm' },
   { prompt: 'Final task after finishing a project?', options: ['A. Push .env to GitHub.', 'B. Send the localhost link to the manager.', 'C. Deploy on iiita.ac.in', 'D. Rechecked by Vishwas Bhaiya.'], answer: 'Judges’ opinion' },
   { prompt: 'What is our college culture more about?', options: ['A. CP', 'B. Competitive coding', 'C. Dating culture', 'D. Vibe coding'], answer: 'Judges’ opinion' },
   { prompt: 'What is the biggest lie a developer tells?', options: ['A. “I will comment the code later.”', 'B. “This is the final version.”', 'C. “It works on my machine.”', 'D. “I wrote the code from scratch.”'], answer: 'D. “I wrote the code from scratch.”' },
@@ -69,11 +73,17 @@ function AnswerSlide({ question, index }: { question: Question; index: number })
   const isJudgesOpinion = question.answer === 'Judges’ opinion';
   return (
     <Slide center nav={`Answer ${index + 1}`} notes={`Answer for question ${index + 1}: ${question.answer}`}>
-      <Reveal>
+      <Revea l>
         <div className="kicker" style={{ marginBottom: 18 }}>CAPS LOCK · Answer {String(index + 1).padStart(2, '0')}</div>
-        <h2 className="display" style={{ maxWidth: 930, marginInline: 'auto', fontSize: 'clamp(40px, 6.4vw, 84px)' }}>
-          {isJudgesOpinion ? <span className="accent-text">Judges’ opinion</span> : question.answer}
-        </h2>
+        {question.answerLink ? (
+          <a href={question.answerLink} target="_blank" rel="noreferrer" className="answer-link">
+            Watch the answer reel ↗
+          </a>
+        ) : (
+          <h2 className="display" style={{ maxWidth: 930, marginInline: 'auto', fontSize: 'clamp(40px, 6.4vw, 84px)' }}>
+            {isJudgesOpinion ? <span className="accent-text">Judges’ opinion</span> : question.answer}
+          </h2>
+        )}
         {isJudgesOpinion && <p className="subhead" style={{ marginTop: 24 }}>The judges have the final call on this one.</p>}
       </Reveal>
     </Slide>
@@ -82,6 +92,7 @@ function AnswerSlide({ question, index }: { question: Question; index: number })
 
 export default function App() {
   return (
+    <PasswordGate>
     <Deck>
       <Cover
         nav="Cover"
@@ -116,5 +127,6 @@ export default function App() {
         </Reveal>
       </Slide>
     </Deck>
+    </PasswordGate>
   );
 }
