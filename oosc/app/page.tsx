@@ -73,7 +73,7 @@ function AnswerSlide({ question, index }: { question: Question; index: number })
   const isJudgesOpinion = question.answer === 'Judges’ opinion';
   return (
     <Slide center nav={`Answer ${index + 1}`} notes={`Answer for question ${index + 1}: ${question.answer}`}>
-      <Revea l>
+      <Reveal>
         <div className="kicker" style={{ marginBottom: 18 }}>CAPS LOCK · Answer {String(index + 1).padStart(2, '0')}</div>
         {question.answerLink ? (
           <a href={question.answerLink} target="_blank" rel="noreferrer" className="answer-link">
