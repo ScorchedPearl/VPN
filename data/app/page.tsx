@@ -568,6 +568,476 @@ export default function App() {
       </Slide>
         </>
       }
+      weekThree={
+        <>
+      <Cover
+        nav="Week 3"
+        notes="Week 3 provides a comprehensive catalog of all client-side hardware, rendering, typography, network, and server-side parameters captured by our browser fingerprinting engine."
+        kicker="Week 3 · Browser fingerprinting inventory"
+        title={
+          <>
+            Captured parameters
+            <br />
+            <span className="accent-text">&amp; fingerprint surface</span>
+          </>
+        }
+        subtitle="Complete catalog of hardware, display, graphical rendering, typography, WebRTC telemetry, and server-side ingress parameters collected to date."
+        foot="VPN-risk research · Week 3"
+      />
+
+      <Slide nav="01 · Hardware & Specs" notes="Slide 1 covers hardware, CPU, memory, display geometry, operating system, and high-entropy architecture hints.">
+        <div className="container">
+          <Reveal>
+            <div className="kicker" style={{ marginBottom: 12 }}>Collected parameters · Slide 01</div>
+            <h2 className="headline" style={{ marginBottom: 'clamp(20px, 3vh, 32px)' }}>
+              Hardware, OS &amp; <span className="accent-text">display geometry</span>
+            </h2>
+          </Reveal>
+          <div className="cols" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            <Reveal delay={0.05}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="kicker" style={{ marginBottom: 14 }}>CPU &amp; Device Memory</div>
+                {[
+                  ['hardwareConcurrency', 'Logical CPU core thread count'],
+                  ['hardwareBucket', '<=2 · <=4 · <=8 · <=16 · >16'],
+                  ['deviceMemory', 'Approximate device RAM in GB'],
+                  ['memoryBucket', '<=2 · <=4 · <=8 · <=16 · >16'],
+                ].map(([param, desc]) => (
+                  <div key={param} style={{ padding: '9px 0', borderTop: '1px solid var(--hair-2)', fontSize: 13 }}>
+                    <div style={{ color: '#30c9f4', fontFamily: 'var(--font-mono)' }}>{param}</div>
+                    <div style={{ color: 'var(--fg-muted)', fontSize: 12, marginTop: 2 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.1}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="kicker" style={{ marginBottom: 14 }}>Display &amp; Screen Geometry</div>
+                {[
+                  ['screen.width / height', 'Physical display resolution'],
+                  ['max / minDimensionBucket', '100px rounded dimension buckets'],
+                  ['pixelRatioBucket', 'Device pixel ratio rounded to 0.25'],
+                  ['colorDepth', 'Screen bit depth (24 / 30 / 32-bit)'],
+                ].map(([param, desc]) => (
+                  <div key={param} style={{ padding: '9px 0', borderTop: '1px solid var(--hair-2)', fontSize: 13 }}>
+                    <div style={{ color: '#62e6b7', fontFamily: 'var(--font-mono)' }}>{param}</div>
+                    <div style={{ color: 'var(--fg-muted)', fontSize: 12, marginTop: 2 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.15}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="kicker" style={{ marginBottom: 14 }}>OS, Platform &amp; Hints</div>
+                {[
+                  ['osFamily & platform', 'Windows · macOS · Linux · iOS'],
+                  ['architecture', 'High-Entropy UA hint (arm / x86)'],
+                  ['bitness', 'High-Entropy UA bitness (32 / 64-bit)'],
+                  ['touchPoints', 'navigator.maxTouchPoints count'],
+                ].map(([param, desc]) => (
+                  <div key={param} style={{ padding: '9px 0', borderTop: '1px solid var(--hair-2)', fontSize: 13 }}>
+                    <div style={{ color: '#f2c94c', fontFamily: 'var(--font-mono)' }}>{param}</div>
+                    <div style={{ color: 'var(--fg-muted)', fontSize: 12, marginTop: 2 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </Slide>
+
+      <Slide nav="02 · Graphical & Fonts" notes="Slide 2 covers 2D Canvas render hashing, WebGL GPU unmasking and parameter hashing, 25-font baseline tests, and Web API capabilities.">
+        <div className="container">
+          <Reveal>
+            <div className="kicker" style={{ marginBottom: 12 }}>Collected parameters · Slide 02</div>
+            <h2 className="headline" style={{ marginBottom: 'clamp(20px, 3vh, 32px)' }}>
+              Canvas, WebGL &amp; <span className="accent-text">system typography</span>
+            </h2>
+          </Reveal>
+          <div className="cols" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            <Reveal delay={0.05}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#ff9c66', borderColor: '#ff9c6655', background: '#ff9c6614', marginBottom: 12 }}>Canvas 2D Engine</div>
+                <div style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5, marginBottom: 10 }}>
+                  Renders multi-color text, shapes &amp; gradients to exploit sub-pixel anti-aliasing quirks.
+                </div>
+                {[
+                  ['canvas.hash', 'SHA-256 hash of canvas data URL'],
+                  ['canvas.repeatable', 'Dual-pass render consistency check'],
+                ].map(([param, desc]) => (
+                  <div key={param} style={{ padding: '8px 0', borderTop: '1px solid var(--hair-2)', fontSize: 13 }}>
+                    <div style={{ color: '#ff9c66', fontFamily: 'var(--font-mono)' }}>{param}</div>
+                    <div style={{ color: 'var(--fg-muted)', fontSize: 12, marginTop: 2 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.1}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#30c9f4', borderColor: '#30c9f455', background: '#30c9f414', marginBottom: 12 }}>WebGL &amp; GPU Profile</div>
+                <div style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5, marginBottom: 10 }}>
+                  Queries debug info to unmask actual hardware vendor, renderer &amp; buffer limits.
+                </div>
+                {[
+                  ['webgl.vendor / renderer', 'Unmasked GPU name (e.g. Apple M2)'],
+                  ['webgl.rendererFamily', 'apple-gpu · nvidia · amd · intel'],
+                  ['webgl.parameterHash', 'SHA-256 of extensions &amp; limits'],
+                ].map(([param, desc]) => (
+                  <div key={param} style={{ padding: '8px 0', borderTop: '1px solid var(--hair-2)', fontSize: 13 }}>
+                    <div style={{ color: '#30c9f4', fontFamily: 'var(--font-mono)' }}>{param}</div>
+                    <div style={{ color: 'var(--fg-muted)', fontSize: 12, marginTop: 2 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.15}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#62e6b7', borderColor: '#62e6b755', background: '#62e6b714', marginBottom: 12 }}>Fonts &amp; Capabilities</div>
+                <div style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.5, marginBottom: 10 }}>
+                  Measures font fallback widths and checks 12 modern Web platform APIs.
+                </div>
+                {[
+                  ['fonts (25 checked)', 'Arial, Segoe UI, Roboto, Menlo, ...'],
+                  ['capabilities (12 APIs)', 'webgl2, webgpu, wasm, webrtc, usb, hid...'],
+                ].map(([param, desc]) => (
+                  <div key={param} style={{ padding: '8px 0', borderTop: '1px solid var(--hair-2)', fontSize: 13 }}>
+                    <div style={{ color: '#62e6b7', fontFamily: 'var(--font-mono)' }}>{param}</div>
+                    <div style={{ color: 'var(--fg-muted)', fontSize: 12, marginTop: 2 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </Slide>
+
+      <Slide nav="03 · Network & Ingress" notes="Slide 3 covers typed WebRTC candidates, timezone and UTC offset, network information, GeoIP enrichment, server request headers, and dual signatures.">
+        <div className="container">
+          <Reveal>
+            <div className="kicker" style={{ marginBottom: 12 }}>Collected parameters · Slide 03</div>
+            <h2 className="headline" style={{ marginBottom: 'clamp(20px, 3vh, 32px)' }}>
+              WebRTC, timezone &amp; <span className="accent-text">server ingress</span>
+            </h2>
+          </Reveal>
+          <div className="cols" style={{ gridTemplateColumns: '1.1fr 0.9fr' }}>
+            <Reveal delay={0.05}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330 }}>
+                <div className="kicker" style={{ marginBottom: 14 }}>WebRTC &amp; Timezone Telemetry</div>
+                {[
+                  ['webrtcCandidates[]', 'Typed ICE candidates (host, srflx, relay, prflx)'],
+                  ['addressFamily & isPublic', 'Parsed into ipv4, ipv6, mdns, and public status'],
+                  ['timezone.name', 'Resolved IANA timezone (e.g. Asia/Kolkata)'],
+                  ['timezone.offsetMinutes', 'Accurate system UTC offset (-getTimezoneOffset)'],
+                  ['languages[]', 'Configured browser language preference array'],
+                ].map(([param, desc]) => (
+                  <div key={param} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: 12, padding: '9px 0', borderTop: '1px solid var(--hair-2)', fontSize: 13 }}>
+                    <span style={{ color: '#30c9f4', fontFamily: 'var(--font-mono)' }}>{param}</span>
+                    <span style={{ color: 'var(--fg-muted)' }}>{desc}</span>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.12}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330 }}>
+                <div className="kicker" style={{ marginBottom: 14 }}>Server-Side Ingress &amp; Signatures</div>
+                {[
+                  ['geoIp.ip / city / country', 'Egress public IP and country location'],
+                  ['geoIp.org / asn', 'ISP autonomous system network name'],
+                  ['cf-connecting-ip / xff', 'Ingress CDN & proxy forwarded headers'],
+                  ['sec-ch-ua / platform', 'High-accuracy client hints unmasking true UA'],
+                  ['signatures.browser', 'Full application-stack SHA-256 signature'],
+                  ['signatures.coarseDevice', 'Hardware-only invariant SHA-256 signature'],
+                ].map(([param, desc]) => (
+                  <div key={param} style={{ padding: '8px 0', borderTop: '1px solid var(--hair-2)', fontSize: 13 }}>
+                    <div style={{ color: '#62e6b7', fontFamily: 'var(--font-mono)' }}>{param}</div>
+                    <div style={{ color: 'var(--fg-muted)', fontSize: 12, marginTop: 2 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </Slide>
+
+      <Slide nav="04 · Prior Bottlenecks 1" notes="Explain why our previous parameters failed across browsers: User-Agent strings change, Canvas toDataURL() uses lossy browser-specific encoders, and screen dimensions change on page zoom.">
+        <div className="container">
+          <Reveal>
+            <div className="kicker" style={{ marginBottom: 12 }}>Cross-browser bottlenecks · Slide 04</div>
+            <h2 className="headline" style={{ marginBottom: 'clamp(20px, 3vh, 32px)' }}>
+              Why prior parameters <span className="accent-text">broke across browsers (Part 1)</span>
+            </h2>
+          </Reveal>
+          <div className="cols" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            <Reveal delay={0.05}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#ff6b6b', borderColor: '#ff6b6b55', background: '#ff6b6b14', marginBottom: 12 }}>Browser-Bound Strings</div>
+                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>UA &amp; Client Hints Divergence</div>
+                <p style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.6 }}>
+                  Parameters like <code>User-Agent</code>, <code>sec-ch-ua</code>, and <code>browserFamily</code> change 100% when switching from Chrome to Firefox/Safari, yielding only <strong>1.39%</strong> cross-browser stability.
+                </p>
+                <div style={{ marginTop: 'auto', padding: 10, borderRadius: 8, background: '#1c0d12', color: '#ff8a8a', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
+                  Bound to application layer
+                </div>
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.1}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#ff9c66', borderColor: '#ff9c6655', background: '#ff9c6614', marginBottom: 12 }}>Lossy Image Encoders</div>
+                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>DataURL &amp; JPEG Variance</div>
+                <p style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.6 }}>
+                  <code>canvas.toDataURL()</code> and JPEG export use lossy compression implemented differently per browser engine. Even on identical GPUs, different browsers generate completely different canvas hashes (<strong>8.17%</strong> stability).
+                </p>
+                <div style={{ marginTop: 'auto', padding: 10, borderRadius: 8, background: '#1f1208', color: '#ffb27d', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
+                  Compression corrupts GPU hash
+                </div>
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.15}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#f2c94c', borderColor: '#f2c94c55', background: '#f2c94c14', marginBottom: 12 }}>Zoom-Vulnerable Screen</div>
+                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Resolution Changes with Zoom</div>
+                <p style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.6 }}>
+                  Browsers like Firefox and IE alter <code>screen.width / height</code> values proportionally when a user zooms (<code>Ctrl++</code>), causing unnormalized screen resolution to drop to <strong>9.13%</strong> cross-browser stability.
+                </p>
+                <div style={{ marginTop: 'auto', padding: 10, borderRadius: 8, background: '#1f1b0a', color: '#ffd76a', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
+                  Broken by user zoom level
+                </div>
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </Slide>
+
+      <Slide nav="05 · Prior Bottlenecks 2" notes="Explain why audio waveforms, web fonts, video codecs, and WebGL string masking destroyed cross-browser linkage.">
+        <div className="container">
+          <Reveal>
+            <div className="kicker" style={{ marginBottom: 12 }}>Cross-browser bottlenecks · Slide 05</div>
+            <h2 className="headline" style={{ marginBottom: 'clamp(20px, 3vh, 32px)' }}>
+              Why prior parameters <span className="accent-text">broke across browsers (Part 2)</span>
+            </h2>
+          </Reveal>
+          <div className="cols" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            <Reveal delay={0.05}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#ff6b6b', borderColor: '#ff6b6b55', background: '#ff6b6b14', marginBottom: 12 }}>Full Audio Waveforms</div>
+                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Browser-Level Audio Stack</div>
+                <p style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.6 }}>
+                  Hashing full <code>DynamicsCompressorNode</code> audio output captures browser software DSP algorithms rather than the underlying OS/sound card hardware, causing waveforms to drift across browsers.
+                </p>
+                <div style={{ marginTop: 'auto', padding: 10, borderRadius: 8, background: '#1c0d12', color: '#ff8a8a', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
+                  Software DSP obscuring hardware
+                </div>
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.1}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#ff9c66', borderColor: '#ff9c6655', background: '#ff9c6614', marginBottom: 12 }}>Web Fonts &amp; Flash</div>
+                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Obsolete Flash &amp; Web Bundles</div>
+                <p style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.6 }}>
+                  Prior methods relied on obsolete Flash plugins (entropy dropped to 2.40) or measured generic web fonts bundled into specific browsers rather than permanent OS-installed system typefaces.
+                </p>
+                <div style={{ marginTop: 'auto', padding: 10, borderRadius: 8, background: '#1f1208', color: '#ffb27d', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
+                  Web-specific font pollution
+                </div>
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.15}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#f2c94c', borderColor: '#f2c94c55', background: '#f2c94c14', marginBottom: 12 }}>Lossy Codecs &amp; Masking</div>
+                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Video Loss &amp; String Privacy</div>
+                <p style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.6 }}>
+                  Video decompression (WebM/MP4) is lossy (<strong>5.48%</strong> stability). Furthermore, privacy browsers like Firefox intentionally hide or generalize raw WebGL vendor and renderer debug strings (<strong>15.39%</strong> stability).
+                </p>
+                <div style={{ marginTop: 'auto', padding: 10, borderRadius: 8, background: '#1f1b0a', color: '#ffd76a', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
+                  Strings hidden by privacy flags
+                </div>
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </Slide>
+
+      <Slide nav="06 · NDSS OS & Hardware" notes="Explain the NDSS paper core thesis: extract invariant OS and hardware features below the browser layer (Screen Ratio, CPU cores with Safari doubling, audio destination properties, and installed language scripts).">
+        <div className="container">
+          <Reveal>
+            <div className="kicker" style={{ marginBottom: 12 }}>NDSS '17 Solution · Slide 06</div>
+            <h2 className="headline" style={{ marginBottom: 'clamp(20px, 3vh, 32px)' }}>
+              Extracting OS &amp; hardware features <span className="accent-text">below the browser</span>
+            </h2>
+          </Reveal>
+          <div className="cols" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            <Reveal delay={0.05}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="kicker" style={{ marginBottom: 14 }}>Screen Ratio &amp; Boundaries</div>
+                {[
+                  ['Screen Aspect Ratio', 'width / height ratio is invariant to browser zoom (97.57% stability)'],
+                  ['availWidth / availHeight', 'Screen area excluding OS taskbar / Mac top menu'],
+                  ['availLeft / availTop / orient', 'Screen position & orientation across multiple monitors'],
+                ].map(([param, desc]) => (
+                  <div key={param} style={{ padding: '8px 0', borderTop: '1px solid var(--hair-2)', fontSize: 13 }}>
+                    <div style={{ color: '#30c9f4', fontWeight: 600 }}>{param}</div>
+                    <div style={{ color: 'var(--fg-muted)', fontSize: 12, marginTop: 2 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.1}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="kicker" style={{ marginBottom: 14 }}>CPU Cores &amp; Normalization</div>
+                {[
+                  ['hardwareConcurrency', 'Hardware CPU virtual cores (100% stability with mask)'],
+                  ['Safari Worker Normalization', 'Doubles Safari reported count (Safari cuts workers in half)'],
+                  ['Worker Timing Side-Channel', 'Measures completion escalation time when API is unsupported'],
+                ].map(([param, desc]) => (
+                  <div key={param} style={{ padding: '8px 0', borderTop: '1px solid var(--hair-2)', fontSize: 13 }}>
+                    <div style={{ color: '#62e6b7', fontWeight: 600 }}>{param}</div>
+                    <div style={{ color: 'var(--fg-muted)', fontSize: 12, marginTop: 2 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.15}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="kicker" style={{ marginBottom: 14 }}>Audio Stack &amp; Writing Scripts</div>
+                {[
+                  ['Audio Destination Device', 'sampleRate, maxChannelCount, channelCountMode (97.48% stability)'],
+                  ['Frequency Peak Bins', 'Discretizes peak frequencies & values into small 2D bins'],
+                  ['36 Writing Scripts', 'Detects OS language packages (Arabic, Chinese, Hebrew) via box side-channel (97.91%)'],
+                ].map(([param, desc]) => (
+                  <div key={param} style={{ padding: '8px 0', borderTop: '1px solid var(--hair-2)', fontSize: 13 }}>
+                    <div style={{ color: '#f2c94c', fontWeight: 600 }}>{param}</div>
+                    <div style={{ color: 'var(--fg-muted)', fontSize: 12, marginTop: 2 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </Slide>
+
+      <Slide nav="07 · NDSS GPU Tasks" notes="Detail the 20+ GPU rendering tasks proposed by the paper: Anti-aliasing, color varyings, high-contrast random textures, discrete alpha blending, and complex light reflection.">
+        <div className="container">
+          <Reveal>
+            <div className="kicker" style={{ marginBottom: 12 }}>NDSS '17 Solution · Slide 07</div>
+            <h2 className="headline" style={{ marginBottom: 'clamp(20px, 3vh, 32px)' }}>
+              20+ GPU rendering tasks <span className="accent-text">&amp; shader pipeline profiling</span>
+            </h2>
+          </Reveal>
+          <div className="cols" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            <Reveal delay={0.05}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#30c9f4', borderColor: '#30c9f455', background: '#30c9f414', marginBottom: 12 }}>Shaders &amp; Anti-Aliasing</div>
+                {[
+                  ['Anti-Aliasing Smoothing', 'Captures GPU driver edge-smoothing algorithms on 2D curves & 3D models (74-90% stability).'],
+                  ['Fragment Shader Varyings', 'Rasterization color interpolation across cube & Suzanne surfaces (88.25% stability).'],
+                  ['Lines & Curves Gradients', 'Trigonometric curves y = 256 - 100cos(...) testing sub-pixel coordinate shifts.'],
+                ].map(([title, desc]) => (
+                  <div key={title} style={{ padding: '8px 0', borderTop: '1px solid var(--hair-2)', fontSize: 13 }}>
+                    <strong style={{ color: '#30c9f4', display: 'block' }}>{title}</strong>
+                    <span style={{ color: 'var(--fg-muted)', fontSize: 12 }}>{desc}</span>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.1}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#62e6b7', borderColor: '#62e6b755', background: '#62e6b714', marginBottom: 12 }}>Textures &amp; Alpha Blending</div>
+                {[
+                  ['High-Contrast Noise Texture', 'Random 256x256 RGB noise amplifies GPU texture filtering & interpolation differences (81.47%).'],
+                  ['Discrete Alpha Blending', '8 precise alpha values (0.09 to 1.0) testing GPU rounding & transparency jumps (82.75%).'],
+                  ['Float & Cubemap Textures', 'Depth buffer float textures and 6-face cubemap Fresnel reflections (58-74%).'],
+                ].map(([title, desc]) => (
+                  <div key={title} style={{ padding: '8px 0', borderTop: '1px solid var(--hair-2)', fontSize: 13 }}>
+                    <strong style={{ color: '#62e6b7', display: 'block' }}>{title}</strong>
+                    <span style={{ color: 'var(--fg-muted)', fontSize: 12 }}>{desc}</span>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.15}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#f2c94c', borderColor: '#f2c94c55', background: '#f2c94c14', marginBottom: 12 }}>Lighting &amp; 5,000 Models</div>
+                {[
+                  ['Specular Reflection Highlight', 'Diffuse + specular point lights causing distinct GPU specular spot reflections (80.64%).'],
+                  ['Multi-Model Shadow Mapping', 'Suzanne + Sofa models testing inter-model shadow and hidden surface visibility (80.94%).'],
+                  ['5,000 Metallic Ring Tracing', 'Seeded pseudorandom pile of 5,000 rings testing complex multi-light reflection tracing (Task k).'],
+                ].map(([title, desc]) => (
+                  <div key={title} style={{ padding: '8px 0', borderTop: '1px solid var(--hair-2)', fontSize: 13 }}>
+                    <strong style={{ color: '#f2c94c', display: 'block' }}>{title}</strong>
+                    <span style={{ color: 'var(--fg-muted)', fontSize: 12 }}>{desc}</span>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </Slide>
+
+      <Slide nav="08 · NDSS Masking & Pipeline" notes="Explain the lossless PNG/pixel-buffer data transfer pipeline and the trained browser-pair mask generation algorithm that achieved 99.24% single-browser and 83.24% cross-browser uniqueness with 91.44% stability.">
+        <div className="container">
+          <Reveal>
+            <div className="kicker" style={{ marginBottom: 12 }}>NDSS '17 Solution · Slide 08</div>
+            <h2 className="headline" style={{ marginBottom: 'clamp(20px, 3vh, 32px)' }}>
+              Browser-pair masking &amp; <span className="accent-text">lossless data pipeline</span>
+            </h2>
+          </Reveal>
+          <div className="cols" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            <Reveal delay={0.06}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="kicker" style={{ marginBottom: 14 }}>Lossless Data Protocol</div>
+                <div style={{ padding: 14, borderRadius: 10, background: '#030712', border: '1px solid var(--hair-2)', marginBottom: 14 }}>
+                  <div style={{ color: '#62e6b7', fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600 }}>Replace DataURL with Lossless PNG / Raw Buffers</div>
+                  <div style={{ color: 'var(--fg-muted)', fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>
+                    Transfers raw canvas pixel buffers to eliminate browser-specific compression differences from corrupting GPU hardware hashes.
+                  </div>
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--fg-muted)', lineHeight: 1.6 }}>
+                  <strong>Graceful Fallbacks:</strong> Distinguishes software rendering (SwiftShader, Microsoft Basic Rendering) from native hardware drivers without breaking fingerprint consistency.
+                </div>
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.12}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
+                <div className="kicker" style={{ marginBottom: 14 }}>Trained Browser-Pair Masks (Algorithm 1)</div>
+                <div style={{ padding: 14, borderRadius: 10, background: '#0a192f', border: '1px solid #30c9f433', marginBottom: 14 }}>
+                  <div style={{ color: '#30c9f4', fontFamily: 'var(--font-mono)', fontSize: 13 }}>
+                    Mask Optimization: Maximize(Stability × Uniqueness)
+                  </div>
+                  <div style={{ color: 'var(--fg-muted)', fontSize: 12, marginTop: 6 }}>
+                    Applies custom masks for each pair (e.g. <code>Chrome vs Firefox</code>, <code>Chrome vs Edge</code>) to discard browser-divergent task bits.
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 'auto' }}>
+                  <div style={{ padding: 10, borderRadius: 8, background: '#091e17', border: '1px solid #62e6b733', textAlign: 'center' }}>
+                    <div style={{ color: '#62e6b7', fontSize: 20, fontWeight: 700 }}>99.24%</div>
+                    <div style={{ color: 'var(--fg-muted)', fontSize: 11 }}>Single-Browser Uniqueness</div>
+                  </div>
+                  <div style={{ padding: 10, borderRadius: 8, background: '#091620', border: '1px solid #30c9f433', textAlign: 'center' }}>
+                    <div style={{ color: '#30c9f4', fontSize: 20, fontWeight: 700 }}>83.24%</div>
+                    <div style={{ color: 'var(--fg-muted)', fontSize: 11 }}>Cross-Browser (91.44% Stable)</div>
+                  </div>
+                </div>
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </Slide>
+        </>
+      }
     />
   );
 }
