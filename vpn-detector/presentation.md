@@ -1,59 +1,63 @@
-# VPN Detection via Browser Fingerprinting
-## Project Prototype Summary
+# VPN Detection via Zero-Touch Passive Telemetry
+## 5-Layer Passive Detection & Inconsistency Architecture
 
 ---
 
 # 1. Project Objective
-- **Goal:** Develop a prototype to detect VPN and Proxy usage.
-- **Method:** Advanced browser fingerprinting and network topology analysis.
-- **Target Audience:** Government organizations requiring strict identity and location verification.
-- **Scope:** First phase focuses on robust data collection and anomaly detection when a user interacts with the system.
+- **Goal:** Passive zero-touch detection of VPNs, Proxies, and Tor relays without requiring user interaction (zero CAPTCHA/MFA friction).
+- **Method:** Multi-layer transport, flow dynamics, cryptographic, BGP, and client environment contradiction synthesis.
+- **Target Audience:** Organizations requiring strict identity and location verification.
+- **Core Principle:** Single-session physical and protocol contradiction proofs (eliminating false alarms from identical mass-market devices).
 
 ---
 
-# 2. Technology Stack
-- **Frontend & Backend:** Next.js (React Framework).
-- **Styling:** Tailwind CSS for a premium, modern dashboard.
-- **Animations:** Framer Motion for a sleek user experience.
-- **Deployment:** Runs locally for initial research and testing.
+# 2. 5-Layer Zero-Touch Architecture
+
+| Layer & Feature Group | Data Collector | Processing Overhead | Weight in Scoring |
+| :--- | :--- | :--- | :--- |
+| **Layer 1: Passive TCP/IP Stack** | p0f / eBPF / Kernel Driver | Near 0% | High (40%) |
+| **Layer 2: Flow Trace (TPA-SSTM)** | Network TAP / Packet Capture | Low | High (35%) |
+| **Layer 3: TLS JA4 Cryptography** | Reverse Proxy (HAProxy/NGINX) | Minimal | Medium (15%) |
+| **Layer 4: BGP ASN & IP Intelligence** | Server-side IP Database Lookup | Negligible | Critical Override |
+| **Layer 5: Silent Client JS** | Asynchronous `fetch()` script | Minimal | Medium (10%) |
 
 ---
 
-# 3. Core Features Developed
-1. **Interactive Dashboard:** A sleek UI to trigger identity analysis.
-2. **Client-Side Engine:** Extracts deep hardware and browser identifiers.
-3. **Server-Side Capture:** Intercepts HTTP and Proxy headers.
-4. **Active Anomaly Detection:** Cross-references data points to flag suspicious mismatches.
+# 3. Layer Breakdown
+
+### Layer 1: Passive TCP/IP Stack Features (40% Weight)
+- **Initial TTL:** Baselines (Windows=128, Linux/macOS/iOS=64) exposing intermediate proxy hops.
+- **Don't Fragment (DF) Flag:** Evaluates path MTU discovery differences between consumer and server kernels.
+- **MSS Clamping:** Tunnel encapsulation drops MSS from standard 1460 bytes to 1380, 1350, or 1280 bytes.
+- **Initial Window Size & Scale:** Identifies large static datacenter buffers vs dynamic consumer stacks.
+- **TCP Options String (JA4T):** Option ordering (MSS → NOP → WS → SACK → TS) identifies the true routing kernel.
+
+### Layer 2: Traffic Trace & Flow Metadata (TPA-SSTM) (35% Weight)
+- **Direction & Size Sequence:** Sequence vector (e.g. `[+1460, -64, +540, -64]`) capturing structural resource footprints.
+- **Inter-Packet Arrival Delay ($\Delta t$):** Microsecond timestamps exposing VPN crypto overhead and queuing jitter.
+- **Directional Burst Metrics:** Consecutive packet count, burst volume (bytes), and burst duration.
+- **Cumulative Byte-Flow Trajectory:** Byte transfer slope over session elapsed time.
+
+### Layer 3: Cryptographic & TLS Fingerprinting (15% Weight)
+- **JA4 / JA3 Hash:** Hashes TLS version, ciphers, extensions, curves; unmasks non-browser runtimes (Python, Go, OpenVPN wrappers).
+- **Cipher Suite Ordering:** Distinguishes genuine browsers from proxy scripts and custom VPN wrappers.
+- **ALPN Negotiation:** Inspects `h2`, `http/1.1`, or `h3` negotiation consistency.
+
+### Layer 4: Infrastructure & Routing Data (Critical Override)
+- **BGP ASN Classification:** Flags cloud/datacenter ASNs (M247, DataCamp, AWS, OVH, Hetzner, DigitalOcean) vs residential ISPs.
+- **CIDR Range Classification:** Known VPN exit nodes, public proxies, and Tor relay directories.
+- **TCP Handshake RTT:** Speed-of-light triangulation (~200 km/ms) against claimed GeoIP distance.
+
+### Layer 5: Silent Client-Side Telemetry (10% Weight)
+- **Timezone Offset vs IP:** System clock offset vs GeoIP timezone.
+- **System Locale & Languages:** `navigator.languages` vs IP native region language.
+- **WebGL GPU vs User-Agent:** `UNMASKED_RENDERER_WEBGL` hardware string vs declared OS.
+- **Speech Voices & System Fonts:** Native OS voice signatures (`window.speechSynthesis.getVoices()`) validating platform.
+- **WebRTC STUN Leaks:** Server-reflexive address unmasking non-tunneled network interfaces.
 
 ---
 
-# 4. Data Collected: Network & Server
-- **Public IP Address:** Captured via external geolocation services.
-- **Geolocation Data:** City, Country, ISP, and IP-specific Timezone.
-- **HTTP Headers:** User-Agent, Accept-Language.
-- **Proxy Headers:** `X-Forwarded-For`, `X-Real-IP`, `Via`.
-- **Client Hints (`sec-ch-ua`):** Unmasks the true browser (e.g., exposing Brave even when it masks as Chrome).
-
----
-
-# 5. Data Collected: Advanced Fingerprints
-- **Canvas Fingerprinting:** Renders hidden graphics to create a unique hash based on OS and GPU rendering quirks.
-- **WebGL Vendor & Renderer:** Bypasses software masks to reveal actual hardware (e.g., Apple M2 chips).
-- **Hardware Specs:** CPU cores, Device RAM, Screen Resolution, Color Depth.
-- **Font Fingerprinting:** Enumerates installed system fonts via canvas text measurements.
-
----
-
-# 6. How VPNs Are Detected (Anomalies)
-- **Timezone Mismatch (Primary Heuristic):** 
-  - Compares the physical Timezone of the IP address against the system Timezone of the browser.
-  - A mismatch heavily indicates the use of a VPN/Proxy altering the IP location.
-- **WebRTC IP Leaks:** 
-  - Uses hidden data channels to coax the browser into leaking internal network IPs or true public IPs, bypassing the VPN tunnel.
-
----
-
-# 7. Next Steps & Future Phases
-- **Server Deployment:** Host the application on a public server to test real-world IP capture.
-- **Database Integration:** Store fingerprints to detect returning users who change their IP addresses.
-- **Machine Learning (Optional):** Train a model to weight the suspicion score based on the combination of anomalies detected.
+# 4. Next Steps & Future Phases
+- **Kernel / eBPF Integration:** Implement zero-overhead SYN packet parser for real-time JA4T extraction.
+- **TPA-SSTM Flow Model:** Deploy flow-based traffic classifier on ingress TAP.
+- **Unified Inconsistency Engine:** Weighted composite scoring combining Layers 1–5 with explainable evidence output.

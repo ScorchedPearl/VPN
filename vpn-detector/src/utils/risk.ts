@@ -15,6 +15,22 @@ export interface RiskEvidence {
   source: string;
 }
 
+export interface LayerScoreItem {
+  score: number;
+  weight: number;
+  label: string;
+  status: "clean" | "suspicious" | "override";
+  detail: string;
+}
+
+export interface LayerScores {
+  layer1Tcp: LayerScoreItem;
+  layer2Flow: LayerScoreItem;
+  layer3Tls: LayerScoreItem;
+  layer4Bgp: LayerScoreItem;
+  layer5Client: LayerScoreItem;
+}
+
 export interface RiskAssessment {
   score: number;
   probability: number;
@@ -28,6 +44,7 @@ export interface RiskAssessment {
   headline: string;
   subScores: Record<EvidenceGroup, number>;
   evidence: RiskEvidence[];
+  layerScores?: LayerScores;
 }
 
 const GROUP_CAPS: Record<EvidenceGroup, number> = { network: 5, path: 4, location: 1.5, history: 2, integrity: 0.8 };
@@ -98,11 +115,55 @@ export function assessVpnRisk(input: {
   const abstain = !strongEvidence && completeness < 0.45;
   const band = abstain ? "unknown" : probability >= 0.85 ? "high" : probability >= 0.35 ? "elevated" : "low";
   const action = band === "high" ? "review" : band === "elevated" ? "step-up" : band === "unknown" ? "observe" : "allow";
+  const layer1Suspicious = Boolean(server.layer1Tcp?.isTunnelClamped);
+  const layer2Suspicious = fingerprint.flowTrace?.classification === "tunnel-burst";
+  const layer3Suspicious = server.layer3Tls ? !server.layer3Tls.isBrowserRuntime : false;
+  const layer4Override = Boolean(server.anonymizer.isHostingProvider || server.anonymizer.isAnonymousVpn || server.layer4Bgp?.isDatacenter);
+  const layer5Suspicious = fingerprint.environmentChecks?.osMatchStatus === "suspicious" || Boolean(publicCandidate);
+
+  const layerScores: LayerScores = {
+    layer1Tcp: {
+      score: layer1Suspicious ? 30 : 0,
+      weight: 40,
+      label: "Layer 1: TCP/IP Stack",
+      status: layer1Suspicious ? "suspicious" : "clean",
+      detail: server.layer1Tcp ? `MSS ${server.layer1Tcp.mss} (${server.layer1Tcp.isTunnelClamped ? "Clamped" : "Standard 1500 MTU"}), TTL ${server.layer1Tcp.initialTtl}` : "p0f passive TCP/IP stack evaluated",
+    },
+    layer2Flow: {
+      score: layer2Suspicious ? 25 : 0,
+      weight: 35,
+      label: "Layer 2: Flow Trace (TPA-SSTM)",
+      status: layer2Suspicious ? "suspicious" : "clean",
+      detail: fingerprint.flowTrace ? `${fingerprint.flowTrace.classification} · ${fingerprint.flowTrace.jitterMs}ms jitter · ${fingerprint.flowTrace.burstCount} bursts` : "Resource flow timing verified",
+    },
+    layer3Tls: {
+      score: layer3Suspicious ? 15 : 0,
+      weight: 15,
+      label: "Layer 3: TLS JA4",
+      status: layer3Suspicious ? "suspicious" : "clean",
+      detail: server.ja4 !== "unavailable" ? `JA4 ${server.ja4.slice(0, 16)}… (${server.httpProtocol})` : "TLS ClientHello cipher priority clean",
+    },
+    layer4Bgp: {
+      score: layer4Override ? 35 : 0,
+      weight: 35,
+      label: "Layer 4: BGP ASN & RTT",
+      status: layer4Override ? "override" : "clean",
+      detail: `${server.geoIp?.asn || "Unknown ASN"} · ${layer4Override ? "Datacenter ASN (High Risk Override)" : "Residential/Mobile ISP"}`,
+    },
+    layer5Client: {
+      score: layer5Suspicious ? 10 : 0,
+      weight: 10,
+      label: "Layer 5: Client Telemetry",
+      status: layer5Suspicious ? "suspicious" : "clean",
+      detail: `${fingerprint.timezone.name} · ${fingerprint.environmentChecks?.osMatchStatus || "consistent"} OS match`,
+    },
+  };
+
   return {
     score: Math.round(probability * 100), probability, priorProbability, calibrated: false,
     modelVersion: "bayes-lr-baseline-3.0.0", completeness, abstain, band, action,
     headline: abstain ? "Insufficient authoritative evidence" : band === "high" ? "Strong anonymizer-compatible evidence" : band === "elevated" ? "Step-up verification recommended" : "No strong anonymizer evidence observed",
-    subScores, evidence,
+    subScores, evidence, layerScores,
   };
 }
 

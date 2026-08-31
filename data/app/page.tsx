@@ -1038,6 +1038,285 @@ export default function App() {
       </Slide>
         </>
       }
+      weekFour={
+        <>
+      <Cover
+        nav="Architecture"
+        notes="Week 4 / Architecture presents the complete 5-Layer Zero-Touch Passive VPN Detection Architecture, spanning kernel TCP/IP stack signals, flow traces, TLS cryptography, BGP routing intelligence, and silent client telemetry."
+        kicker="Zero-Touch Telemetry · 5-Layer Architecture"
+        title={
+          <>
+            5-Layer Passive
+            <br />
+            <span className="accent-text">VPN &amp; Inconsistency Architecture</span>
+          </>
+        }
+        subtitle="Zero-touch multi-layer telemetry combining kernel TCP/IP stack inspection, traffic trace dynamics, TLS JA4 cryptography, BGP routing intelligence, and silent background client telemetry."
+        foot="Passive Detection Stack · 2026"
+      />
+
+      <Slide nav="Architecture Matrix" notes="This table outlines the implementation architecture, data collector technology, processing overhead, and weight in the overall scoring model.">
+        <div className="container">
+          <Reveal>
+            <div className="kicker" style={{ marginBottom: 12 }}>Architecture Blueprint</div>
+            <h2 className="headline" style={{ marginBottom: 'clamp(20px, 3vh, 32px)' }}>
+              5-Layer collection &amp; <span className="accent-text">scoring architecture</span>
+            </h2>
+          </Reveal>
+          <div className="mat" style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#0a1628', borderBottom: '1px solid var(--hair-2)', color: 'var(--fg-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: 11 }}>
+                  <th style={{ padding: '14px 20px' }}>Layer &amp; Feature Group</th>
+                  <th style={{ padding: '14px 20px' }}>Data Collector</th>
+                  <th style={{ padding: '14px 20px' }}>Processing Overhead</th>
+                  <th style={{ padding: '14px 20px' }}>Weight in Scoring</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['Layer 1: TCP/IP Stack', 'Initial TTL, DF flag, MSS clamping, Window scale, JA4T options', 'p0f / eBPF / Kernel Driver', 'Near 0%', 'High (40%)', '#30c9f4'],
+                  ['Layer 2: Flow Trace (TPA-SSTM)', 'Direction/Size vector, Inter-packet delay Δt, Burst metrics', 'Network TAP / Packet Capture', 'Low', 'High (35%)', '#62e6b7'],
+                  ['Layer 3: TLS JA4', 'JA4/JA3 hash, cipher suite ordering, ALPN negotiation', 'Reverse Proxy (HAProxy / NGINX / Cloudflare)', 'Minimal', 'Medium (15%)', '#f2c94c'],
+                  ['Layer 4: BGP ASN & RTT', 'Datacenter ASN, CIDR ranges, Handshake RTT triangulation', 'Server-side IP Database Lookup', 'Negligible', 'Critical Override', '#ff9c66'],
+                  ['Layer 5: Silent Client JS', 'Timezone vs IP, Locale vs GeoIP, WebGL GPU vs UA, Screen coherency', 'Asynchronous fetch() script', 'Minimal', 'Medium (10%)', '#c084fc'],
+                ].map(([layer, desc, collector, overhead, weight, color]) => (
+                  <tr key={layer} style={{ borderTop: '1px solid var(--hair-2)' }}>
+                    <td style={{ padding: '14px 20px' }}>
+                      <strong style={{ color, display: 'block', marginBottom: 2 }}>{layer}</strong>
+                      <span style={{ color: 'var(--fg-muted)', fontSize: 12 }}>{desc}</span>
+                    </td>
+                    <td style={{ padding: '14px 20px', fontFamily: 'var(--font-mono)', color: '#d8e2ef', fontSize: 12 }}>{collector}</td>
+                    <td style={{ padding: '14px 20px', color: '#62e6b7' }}>{overhead}</td>
+                    <td style={{ padding: '14px 20px' }}>
+                      <span className="chip" style={{ color, borderColor: `${color}44`, background: `${color}14` }}>{weight}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </Slide>
+
+      <Slide nav="Layer 1 · TCP/IP Stack" notes="Extracted from the initial TCP SYN packet before any HTTP payload is transferred. No client JavaScript execution required.">
+        <div className="container">
+          <Reveal>
+            <div className="kicker" style={{ marginBottom: 12 }}>Layer 01 · Server / Gateway Level · 40% Weight</div>
+            <h2 className="headline" style={{ marginBottom: 'clamp(20px, 3vh, 32px)' }}>
+              Passive TCP/IP stack <span className="accent-text">fingerprinting (JA4T)</span>
+            </h2>
+          </Reveal>
+          <div className="cols" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            <Reveal delay={0.05}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 310, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#30c9f4', borderColor: '#30c9f455', background: '#30c9f414' }}>TTL &amp; DF Flag</div>
+                <h3 style={{ fontSize: 20 }}>Initial TTL &amp; Path MTU</h3>
+                <p style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.6 }}>
+                  Standard OS baselines: Windows = 128, Linux/Android = 64, macOS/iOS = 64. Deviations reveal intermediate proxy/tunnel hops.
+                </p>
+                <div style={{ marginTop: 'auto', padding: 10, borderRadius: 8, background: '#030712', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#30c9f4', border: '1px solid var(--hair-2)' }}>
+                  DF Flag: Path MTU discovery differentiates consumer stacks from server kernels.
+                </div>
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.1}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 310, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#ff9c66', borderColor: '#ff9c6655', background: '#ff9c6614' }}>MSS Clamping</div>
+                <h3 style={{ fontSize: 20 }}>Tunnel Encapsulation</h3>
+                <p style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.6 }}>
+                  Standard Ethernet MTU is 1500 bytes (MSS ~1460). VPN crypto wrappers (WireGuard, OpenVPN, IPsec) force MSS down to 1380, 1350, or 1280 bytes.
+                </p>
+                <div style={{ marginTop: 'auto', padding: 10, borderRadius: 8, background: '#120803', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#ff9c66', border: '1px solid #ff9c6633' }}>
+                  MSS &lt; 1440: Direct physical proof of network tunneling.
+                </div>
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.15}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 310, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#62e6b7', borderColor: '#62e6b755', background: '#62e6b714' }}>JA4T Options</div>
+                <h3 style={{ fontSize: 20 }}>Kernel Option Ordering</h3>
+                <p style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.6 }}>
+                  The sequence of TCP options (MSS → NOP → WS → SACK → TS) identifies the true routing kernel (Linux exit gateway vs client OS).
+                </p>
+                <div style={{ marginTop: 'auto', padding: 10, borderRadius: 8, background: '#03120b', fontFamily: 'var(--font-mono)', fontSize: 12, color: '#62e6b7', border: '1px solid #62e6b733' }}>
+                  Window Scale: Static server buffers vs dynamic client windows.
+                </div>
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </Slide>
+
+      <Slide nav="Layer 2 · Flow Trace" notes="Extracted passively from the first 100 to 500 packets of a session using the TPA-SSTM temporal packet analysis model.">
+        <div className="container">
+          <Reveal>
+            <div className="kicker" style={{ marginBottom: 12 }}>Layer 02 · Traffic Dynamics · 35% Weight</div>
+            <h2 className="headline" style={{ marginBottom: 'clamp(20px, 3vh, 32px)' }}>
+              Traffic trace &amp; <span className="accent-text">flow metadata (TPA-SSTM)</span>
+            </h2>
+          </Reveal>
+          <div className="cols" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+            {[
+              ['Direction & Size', 'Sequence vector of (Direction, Size) pairs e.g. [+1460, -64, +540, -64] capturing structural resource footprints.', '#30c9f4'],
+              ['Inter-Packet Delay Δt', 'Microsecond-level packet timestamps exposing encryption encapsulation overhead, queuing delay, and jitter.', '#62e6b7'],
+              ['Directional Bursts', 'Burst metrics: consecutive packet count without turnaround, burst volume in bytes, and burst duration.', '#f2c94c'],
+              ['Byte-Flow Trajectory', 'Cumulative byte-flow curve slope over elapsed session time, characterizing interactive vs automated streams.', '#ff9c66'],
+            ].map(([title, desc, color], index) => (
+              <Reveal key={title} delay={index * 0.06}>
+                <div className="mat" style={{ ...cardStyle, minHeight: 270, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {signalIcon(color, `0${index + 1}`)}
+                  <h3 style={{ fontSize: 18 }}>{title}</h3>
+                  <p style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.6 }}>{desc}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </Slide>
+
+      <Slide nav="Layer 3 · TLS JA4" notes="Analyzed during the TLS ClientHello handshake at the reverse proxy level before HTTP payload decryption.">
+        <div className="container">
+          <Reveal>
+            <div className="kicker" style={{ marginBottom: 12 }}>Layer 03 · Edge Cryptography · 15% Weight</div>
+            <h2 className="headline" style={{ marginBottom: 'clamp(20px, 3vh, 32px)' }}>
+              Cryptographic &amp; <span className="accent-text">TLS JA4 fingerprinting</span>
+            </h2>
+          </Reveal>
+          <div className="cols" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+            <Reveal delay={0.05}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 300, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#f2c94c', borderColor: '#f2c94c55', background: '#f2c94c14' }}>JA4 / JA3 Hash</div>
+                <h3 style={{ fontSize: 21 }}>Runtime Detection</h3>
+                <p style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.6 }}>
+                  Hashes the exact TLS protocol version, cipher suites, TLS extensions, and supported elliptic curves from the ClientHello packet.
+                </p>
+                <div style={{ marginTop: 'auto', padding: 12, borderRadius: 10, background: '#0e1726', color: '#ffd978', fontFamily: 'var(--font-mono)', fontSize: 12, border: '1px solid var(--hair-2)' }}>
+                  Unmasks Python urllib, Go http, or OpenVPN wrappers spoofing browser User-Agents.
+                </div>
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.1}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 300, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#62e6b7', borderColor: '#62e6b755', background: '#62e6b714' }}>Cipher Ordering</div>
+                <h3 style={{ fontSize: 21 }}>Cipher Suite Priority</h3>
+                <p style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.6 }}>
+                  Standard browsers (Chrome, Safari, Firefox) broadcast strictly defined cipher preference sequences. Custom proxy scripts and VPN clients use unique cipher arrays.
+                </p>
+                <div style={{ marginTop: 'auto', padding: 12, borderRadius: 10, background: '#041c14', color: '#62e6b7', fontFamily: 'var(--font-mono)', fontSize: 12, border: '1px solid #62e6b733' }}>
+                  Differentiates genuine Chrome/Blink from Chromium-based proxy bots.
+                </div>
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.15}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 300, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#30c9f4', borderColor: '#30c9f455', background: '#30c9f414' }}>ALPN Protocol</div>
+                <h3 style={{ fontSize: 21 }}>Protocol Negotiation</h3>
+                <p style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.6 }}>
+                  Application-Layer Protocol Negotiation inspects whether the client requests <code>h2</code>, <code>http/1.1</code>, or <code>h3</code> (QUIC).
+                </p>
+                <div style={{ marginTop: 'auto', padding: 12, borderRadius: 10, background: '#071828', color: '#30c9f4', fontFamily: 'var(--font-mono)', fontSize: 12, border: '1px solid #30c9f433' }}>
+                  Mismatches between claimed HTTP/2 support and low-level TLS capabilities trigger scrutiny.
+                </div>
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </Slide>
+
+      <Slide nav="Layer 4 · Infrastructure" notes="BGP routing intelligence cross-referenced against authoritative ASN routing tables. Acts as a critical override.">
+        <div className="container">
+          <Reveal>
+            <div className="kicker" style={{ marginBottom: 12 }}>Layer 04 · IP Intelligence · Critical Override</div>
+            <h2 className="headline" style={{ marginBottom: 'clamp(20px, 3vh, 32px)' }}>
+              Infrastructure &amp; <span className="accent-text">BGP routing data</span>
+            </h2>
+          </Reveal>
+          <div className="cols" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            <Reveal delay={0.05}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 290, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#ff9c66', borderColor: '#ff9c6655', background: '#ff9c6614' }}>BGP ASN</div>
+                <h3 style={{ fontSize: 20 }}>Autonomous System</h3>
+                <p style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.6 }}>
+                  Categorizes the Autonomous System Number into Datacenter / Cloud (M247, DataCamp, AWS, DigitalOcean) vs Residential ISP (Comcast, Jio, AT&amp;T).
+                </p>
+                <div style={{ marginTop: 'auto', color: '#ff9c66', fontSize: 12 }}>Critical override: Human interactive browsing directly from cloud ASNs is highly anomalous.</div>
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.1}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 290, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#30c9f4', borderColor: '#30c9f455', background: '#30c9f414' }}>CIDR Classification</div>
+                <h3 style={{ fontSize: 20 }}>IP Block Classification</h3>
+                <p style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.6 }}>
+                  Classifies IP blocks against verified feeds of commercial VPN exit nodes, public proxies, Tor relay directories, and hosting networks.
+                </p>
+                <div style={{ marginTop: 'auto', color: '#30c9f4', fontSize: 12 }}>Continuous enrichment against multi-source BGP feeds.</div>
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.15}>
+              <div className="mat" style={{ ...cardStyle, minHeight: 290, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div className="chip" style={{ width: 'fit-content', color: '#62e6b7', borderColor: '#62e6b755', background: '#62e6b714' }}>RTT Triangulation</div>
+                <h3 style={{ fontSize: 20 }}>Handshake Latency vs Geo</h3>
+                <p style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.6 }}>
+                  Measures TCP SYN/ACK handshake RTT against the theoretical speed-of-light optical distance (~200 km/ms) to the claimed GeoIP coordinates.
+                </p>
+                <div style={{ marginTop: 'auto', color: '#62e6b7', fontSize: 12 }}>Physics cannot be spoofed: Handshake latency exceeding theoretical bounds proves intermediate relaying.</div>
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </Slide>
+
+      <Slide nav="Layer 5 · Client Telemetry" notes="Captured silently via background JavaScript execution during the initial page connection.">
+        <div className="container">
+          <Reveal>
+            <div className="kicker" style={{ marginBottom: 12 }}>Layer 05 · Client Runtime · 10% Weight</div>
+            <h2 className="headline" style={{ marginBottom: 'clamp(20px, 3vh, 32px)' }}>
+              Silent client-side <span className="accent-text">inconsistency telemetry</span>
+            </h2>
+          </Reveal>
+          <div className="cols" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+            {[
+              ['Timezone vs IP', 'Compares Intl.DateTimeFormat().resolvedOptions().timeZone against the public IP timezone. Flags mismatches >= 90 mins.', '#30c9f4'],
+              ['Locale & Languages', 'Compares navigator.languages and date formatting against the regional language of the claimed GeoIP country.', '#62e6b7'],
+              ['WebGL GPU vs UA', 'Extracts UNMASKED_RENDERER_WEBGL to unmask real GPU hardware (Apple M-series, Nvidia) against claimed User-Agent.', '#f2c94c'],
+              ['Screen Coherency', 'Audits screen width/height, devicePixelRatio, and colorDepth for headless or virtual display anomalies.', '#c084fc'],
+            ].map(([title, desc, color], index) => (
+              <Reveal key={title} delay={index * 0.06}>
+                <div className="mat" style={{ ...cardStyle, minHeight: 270, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {signalIcon(color, `0${index + 1}`)}
+                  <h3 style={{ fontSize: 18 }}>{title}</h3>
+                  <p style={{ color: 'var(--fg-muted)', fontSize: 13, lineHeight: 1.6 }}>{desc}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </Slide>
+
+      <Slide center nav="Architecture Takeaway" notes="Summary of the 5-layer passive detection model."
+        style={{ background: 'radial-gradient(60% 70% at 50% 45%, rgba(18, 76, 92, 0.52), transparent 72%), var(--bg)' }}>
+        <Reveal>
+          <div className="kicker" style={{ marginBottom: 18 }}>5-Layer Zero-Touch Standard</div>
+          <h2 className="display" style={{ maxWidth: 940, fontSize: 'clamp(38px, 6.5vw, 84px)', textAlign: 'center', marginInline: 'auto' }}>
+            Multi-layer synthesis.
+            <br />
+            <span className="accent-text">Zero user friction.</span>
+          </h2>
+          <p className="subhead" style={{ marginTop: 24, maxWidth: 760 }}>
+            Combining packet-level TCP/IP stack signals (40%), flow trace dynamics (35%), TLS JA4 cryptography (15%), BGP ASN overrides, and silent client telemetry (10%) to detect VPNs through mathematical inconsistency.
+          </p>
+          <div className="foot" style={{ marginTop: 36 }}>Passive Zero-Touch VPN Detection Framework · 2026</div>
+        </Reveal>
+      </Slide>
+        </>
+      }
     />
   );
 }

@@ -43,6 +43,32 @@ export interface ProbeConfiguration {
   configured: boolean;
 }
 
+export interface TcpStackData {
+  initialTtl: number;
+  dfFlag: boolean;
+  mss: number;
+  mtu: number;
+  windowScale: number;
+  tcpOptions: string;
+  kernelEstimate: string;
+  isTunnelClamped: boolean;
+}
+
+export interface TlsFingerprintData {
+  ja4Hash: string;
+  ja3Hash: string;
+  cipherSuiteOrder: string[];
+  alpn: string;
+  isBrowserRuntime: boolean;
+}
+
+export interface BgpRoutingData {
+  serverSeenIp: string;
+  isDatacenter: boolean;
+  handshakeRttMs: number;
+  ingressRegion: string;
+}
+
 export interface ServerNetworkData {
   ip: string;
   ipFamily: IpFamily;
@@ -56,6 +82,9 @@ export interface ServerNetworkData {
   anonymizer: AnonymizerData;
   ja4: string;
   httpProtocol: string;
+  layer1Tcp?: TcpStackData;
+  layer3Tls?: TlsFingerprintData;
+  layer4Bgp?: BgpRoutingData;
   clientConsistency?: ClientConsistency;
   probeConfiguration?: ProbeConfiguration;
   scanChallenge?: string;
