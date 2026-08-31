@@ -1,6 +1,7 @@
 import Link from "next/link";
 import ObservationsDashboard from "./observations-dashboard";
 import { recentObservations } from "@/utils/research-store";
+import { evaluateStoredModel } from "@/utils/evaluation";
 
 export const dynamic = "force-dynamic";
 
@@ -20,5 +21,5 @@ export default async function ObservationsPage() {
     );
   }
 
-  return <ObservationsDashboard initialObservations={observations} />;
+  return <ObservationsDashboard initialObservations={observations} evaluation={evaluateStoredModel(observations)} />;
 }

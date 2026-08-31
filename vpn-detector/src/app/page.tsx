@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -25,21 +25,25 @@ import {
   generateClientFingerprint,
   type BrowserMode,
   type FingerprintData,
+  type ObservationSubmission,
   type ResearchObservation,
   type VpnGroundTruth,
 } from "@/utils/fingerprint";
+import { collectConsentedLocation, collectNetworkPathProbes, type ServerNetworkData } from "@/utils/network";
 import type { ObservationMatch } from "@/utils/similarity";
-import { assessVpnRisk, type RiskAssessment, type ServerNetworkData } from "@/utils/risk";
+import type { RiskAssessment } from "@/utils/risk";
 
 interface ObservationResponse {
   observation: ResearchObservation;
   matches: ObservationMatch[];
+  risk: RiskAssessment;
   count: number;
 }
 
 export default function Home() {
   const [fingerprint, setFingerprint] = useState<FingerprintData | null>(null);
   const [serverData, setServerData] = useState<ServerNetworkData | null>(null);
+  const [risk, setRisk] = useState<RiskAssessment | null>(null);
   const [matches, setMatches] = useState<ObservationMatch[]>([]);
   const [storeCount, setStoreCount] = useState(0);
   const [storeBackend, setStoreBackend] = useState<"checking" | "postgresql" | "offline">("checking");
@@ -48,6 +52,12 @@ export default function Home() {
   const [deviceLabel, setDeviceLabel] = useState("demo-device-01");
   const [browserMode, setBrowserMode] = useState<BrowserMode>("normal");
   const [vpnGroundTruth, setVpnGroundTruth] = useState<VpnGroundTruth>("unknown");
+  const [providerCode, setProviderCode] = useState("");
+  const [vpnProtocol, setVpnProtocol] = useState("");
+  const [exitCountry, setExitCountry] = useState("");
+  const [highEntropyResearch, setHighEntropyResearch] = useState(false);
+  const [collectLocation, setCollectLocation] = useState(false);
+  const [consentAcknowledged, setConsentAcknowledged] = useState(false);
 
   useEffect(() => {
     fetch("/api/observations", { cache: "no-store" })
@@ -61,14 +71,14 @@ export default function Home() {
   }, []);
 
   const bestMatch = matches[0] ?? null;
-  const risk: RiskAssessment | null = useMemo(() => {
-    if (!fingerprint || !serverData) return null;
-    return assessVpnRisk(fingerprint, serverData, bestMatch);
-  }, [fingerprint, serverData, bestMatch]);
 
   async function runAnalysis() {
     if (!deviceLabel.trim()) {
       setError("Enter a controlled test-device label first.");
+      return;
+    }
+    if (!consentAcknowledged) {
+      setError("Confirm the research collection and storage notice before scanning.");
       return;
     }
 
@@ -77,36 +87,43 @@ export default function Home() {
     setFingerprint(null);
     setServerData(null);
     setMatches([]);
+    setRisk(null);
 
     try {
-      const [clientResult, networkResponse] = await Promise.all([
-        generateClientFingerprint(),
-        fetch("/api/fingerprint", { cache: "no-store" }),
-      ]);
+      const networkResponse = await fetch("/api/fingerprint", { cache: "no-store" });
       if (!networkResponse.ok) throw new Error("Could not read first-party network observation.");
       const networkResult = await networkResponse.json() as ServerNetworkData;
-      const effectivePublicIp = clientResult.geoIp?.ip || (networkResult.isPublicIp ? networkResult.ip : "Unknown");
-      const observation: ResearchObservation = {
-        observationId: "pending-server-id",
+      const [clientResult, pathProbes, deviceLocation] = await Promise.all([
+        generateClientFingerprint({ stunUrl: networkResult.probeConfiguration?.stunUrl, highEntropyResearch }),
+        collectNetworkPathProbes(networkResult.probeConfiguration),
+        collectConsentedLocation(collectLocation),
+      ]);
+      const submission: ObservationSubmission = {
         deviceLabel: deviceLabel.trim(),
         browserMode,
         vpnGroundTruth,
         fingerprint: clientResult,
-        serverSeenIp: networkResult.ip,
-        effectivePublicIp,
+        pathProbes,
+        deviceLocation,
+        highEntropyResearch,
+        consentAcknowledged,
+        studyId: "vpn-fingerprint-pilot",
+        groundTruthDetails: { providerCode, protocol: vpnProtocol, exitCountry },
+        scanChallenge: networkResult.scanChallenge || "",
       };
 
       const observationResponse = await fetch("/api/observations", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(observation),
+        body: JSON.stringify(submission),
       });
       if (!observationResponse.ok) throw new Error("Could not save the lab observation.");
       const saved = await observationResponse.json() as ObservationResponse;
 
       setFingerprint(clientResult);
-      setServerData(networkResult);
+      setServerData(saved.observation.serverNetwork || networkResult);
       setMatches(saved.matches);
+      setRisk(saved.risk);
       setStoreCount(saved.count);
       setStoreBackend("postgresql");
     } catch (reason) {
@@ -124,7 +141,7 @@ export default function Home() {
         <header className="mb-6 flex flex-col gap-5 border-b border-white/10 pb-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">
-              <FlaskConical className="h-4 w-4" /> Research prototype · schema 2.0
+              <FlaskConical className="h-4 w-4" /> Research prototype · schema 3.0
             </div>
             <h1 className="max-w-4xl text-3xl font-black tracking-tight text-white sm:text-5xl">
               VPN &amp; device linkage lab
@@ -160,7 +177,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <Field label="Test device label">
                 <input
                   value={deviceLabel}
@@ -181,17 +198,40 @@ export default function Home() {
                   <option value="unknown">Unknown</option>
                 </select>
               </Field>
-              <Field label="VPN ground truth">
+              <Field label="Network ground truth">
                 <select
                   value={vpnGroundTruth}
                   onChange={(event) => setVpnGroundTruth(event.target.value as VpnGroundTruth)}
                   className="w-full rounded-xl border border-white/10 bg-[#091625] px-3 py-3 text-sm text-white outline-none focus:border-cyan-400/60"
                 >
                   <option value="unknown">Not labelled</option>
-                  <option value="off">VPN off</option>
-                  <option value="on">VPN on</option>
+                  <option value="none">No anonymizer</option>
+                  <option value="consumer-vpn">Consumer VPN</option>
+                  <option value="corporate-vpn">Corporate VPN</option>
+                  <option value="split-tunnel">Split-tunnel VPN</option>
+                  <option value="tor">Tor</option>
+                  <option value="public-proxy">Public proxy</option>
+                  <option value="residential-proxy">Residential proxy</option>
+                  <option value="private-relay">Private relay</option>
                 </select>
               </Field>
+              <Field label="Provider code (optional)">
+                <input value={providerCode} onChange={(event) => setProviderCode(event.target.value)} maxLength={60} className="w-full rounded-xl border border-white/10 bg-[#091625] px-3 py-3 text-sm text-white outline-none focus:border-cyan-400/60" placeholder="provider-a" />
+              </Field>
+              <Field label="Protocol (optional)">
+                <input value={vpnProtocol} onChange={(event) => setVpnProtocol(event.target.value)} maxLength={40} className="w-full rounded-xl border border-white/10 bg-[#091625] px-3 py-3 text-sm text-white outline-none focus:border-cyan-400/60" placeholder="WireGuard / OpenVPN" />
+              </Field>
+              <Field label="Exit country (optional)">
+                <input value={exitCountry} onChange={(event) => setExitCountry(event.target.value.toUpperCase())} maxLength={2} className="w-full rounded-xl border border-white/10 bg-[#091625] px-3 py-3 text-sm uppercase text-white outline-none focus:border-cyan-400/60" placeholder="IN" />
+              </Field>
+            </div>
+
+            <div className="mt-4 grid gap-3 rounded-xl border border-white/10 bg-black/10 p-4 sm:grid-cols-2">
+              <CheckOption checked={highEntropyResearch} onChange={setHighEntropyResearch} title="High-entropy research mode" detail="Adds speech voices and an AudioContext render. Use only on consented test devices." />
+              <CheckOption checked={collectLocation} onChange={setCollectLocation} title="Permissioned device location" detail="Requests a fresh location with accuracy for IP-location consistency research." />
+              <div className="sm:col-span-2">
+                <CheckOption checked={consentAcknowledged} onChange={setConsentAcknowledged} title="I consent to this controlled research capture" detail="Stores fingerprint components, canonical network evidence, labels, location if enabled, and the model result in PostgreSQL." />
+              </div>
             </div>
 
             <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -207,7 +247,7 @@ export default function Home() {
                 {isScanning ? "Collecting signals…" : "Capture & compare"}
               </motion.button>
               <p className="text-xs leading-5 text-slate-500">
-                Initiating a scan consents to storing this observation in the project&apos;s Supabase PostgreSQL database. Public-IP enrichment is requested from ipapi.co.
+                Network IP and enrichment are now server-observed. Optional MaxMind, Tor, signed dual-stack probes, and first-party STUN are used when configured.
               </p>
             </div>
 
@@ -221,8 +261,8 @@ export default function Home() {
           <Panel className="p-5 sm:p-6">
             <h2 className="mb-4 font-bold text-white">Three-minute demonstration</h2>
             <div className="space-y-3">
-              <DemoStep number="1" title="Establish a baseline" detail="Set VPN off, use demo-device-01, and capture in your normal browser." />
-              <DemoStep number="2" title="Change the network" detail="Enable a VPN, select VPN on, and capture again. Device similarity should remain high while IP evidence changes." />
+              <DemoStep number="1" title="Establish a baseline" detail="Select No anonymizer, use demo-device-01, and capture in your normal browser." />
+              <DemoStep number="2" title="Change the network" detail="Enable a VPN, label its class/provider/protocol, and capture again. Server history will retain the transition." />
               <DemoStep number="3" title="Try another browser" detail="Open the same URL in Firefox, Safari, or private mode with the same label. The cross-browser model compares shared hardware families." />
             </div>
           </Panel>
@@ -232,8 +272,8 @@ export default function Home() {
           <MetricCard
             icon={<Globe2 className="h-5 w-5" />}
             label="Apparent egress"
-            value={fingerprint?.geoIp?.ip || serverData?.ip || "Run a scan"}
-            detail={fingerprint?.geoIp ? `${fingerprint.geoIp.city}, ${fingerprint.geoIp.country} · ${fingerprint.geoIp.asn}` : "External lookup not yet collected"}
+            value={serverData?.ip || "Run a scan"}
+            detail={serverData?.geoIp ? `${serverData.geoIp.city}, ${serverData.geoIp.country} · ${serverData.geoIp.asn}` : serverData?.trustNotice || "Canonical server observation not yet collected"}
             tone="cyan"
           />
           <MetricCard
@@ -252,10 +292,10 @@ export default function Home() {
           />
           <MetricCard
             icon={<ShieldCheck className="h-5 w-5" />}
-            label="VPN-compatible risk"
-            value={risk ? `${risk.score}/100 · ${risk.band}` : "—"}
+            label="Anonymizer posterior"
+            value={risk ? `${risk.score}% · ${risk.band}` : "—"}
             detail={risk?.headline || "Evidence appears after a scan"}
-            tone={risk?.band === "high" ? "rose" : risk?.band === "elevated" ? "amber" : "green"}
+            tone={risk?.band === "high" ? "rose" : risk?.band === "elevated" || risk?.band === "unknown" ? "amber" : "green"}
           />
         </section>
 
@@ -344,20 +384,20 @@ export default function Home() {
 
             <div className="space-y-5">
               <Panel>
-                <PanelHeader icon={<ShieldCheck className="h-5 w-5" />} title="Explainable VPN-risk evidence" subtitle="Ground-truth labels are never used to calculate this score." />
+                <PanelHeader icon={<ShieldCheck className="h-5 w-5" />} title="Explainable anonymizer-risk evidence" subtitle="Ground-truth labels are never used for scoring; correlated evidence is capped within groups." />
                 <div className="p-5">
                   <div className="mb-5 flex items-center gap-5 rounded-2xl border border-white/10 bg-[#081522] p-4">
                     <ScoreGauge score={risk.score} />
                     <div>
-                      <Pill tone={risk.band === "high" ? "rose" : risk.band === "elevated" ? "amber" : "green"}>{risk.band} evidence</Pill>
+                      <Pill tone={risk.band === "high" ? "rose" : risk.band === "elevated" || risk.band === "unknown" ? "amber" : "green"}>{risk.band} evidence</Pill>
                       <p className="mt-2 font-bold text-white">{risk.headline}</p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">A score supports review or step-up verification. It does not prove VPN use.</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">Model {risk.modelVersion} · {Math.round(risk.completeness * 100)}% evidence completeness · action: {risk.action}. Baseline likelihood ratios require calibration on labelled data.</p>
                     </div>
                   </div>
 
                   {risk.evidence.length === 0 ? (
                     <div className="flex gap-3 rounded-xl border border-emerald-400/10 bg-emerald-400/5 p-4 text-sm text-emerald-200">
-                      <CheckCircle2 className="h-5 w-5 shrink-0" /> No implemented heuristic produced VPN-compatible evidence in this observation.
+                      <CheckCircle2 className="h-5 w-5 shrink-0" /> No implemented signal produced anonymizer-compatible evidence in this observation.
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -368,7 +408,7 @@ export default function Home() {
                               <p className="font-semibold text-white">{item.label}</p>
                               <p className="mt-1 text-xs leading-5 text-slate-400">{item.detail}</p>
                             </div>
-                            <span className="shrink-0 font-mono text-sm font-bold text-amber-300">+{item.points}</span>
+                            <div className="shrink-0 text-right"><span className="block font-mono text-sm font-bold text-amber-300">LR ×{Math.exp(item.logLikelihoodRatio).toFixed(1)}</span><span className="text-[9px] uppercase tracking-wider text-slate-600">{item.group} · {item.source}</span></div>
                           </div>
                         </div>
                       ))}
@@ -378,14 +418,16 @@ export default function Home() {
               </Panel>
 
               <Panel>
-                <PanelHeader icon={<Network className="h-5 w-5" />} title="Network observations" subtitle="External egress and first-party ingress are kept as separate vantage points." />
+                <PanelHeader icon={<Network className="h-5 w-5" />} title="Authoritative network observation" subtitle="IP enrichment runs on the server; JavaScript no longer selects the security IP." />
                 <div className="space-y-1 p-5 pt-3">
-                  <DataLine label="External public IP" value={fingerprint.geoIp?.ip || "Unavailable"} />
-                  <DataLine label="IP location" value={fingerprint.geoIp ? `${fingerprint.geoIp.city}, ${fingerprint.geoIp.country}` : "Unavailable"} />
-                  <DataLine label="ASN / organization" value={fingerprint.geoIp ? `${fingerprint.geoIp.asn} · ${fingerprint.geoIp.org}` : "Unavailable"} />
-                  <DataLine label="First-party server IP" value={`${serverData.ip} · ${serverData.source}`} />
+                  <DataLine label="Canonical public IP" value={`${serverData.ip} · ${serverData.ipFamily} · ${serverData.source}`} />
+                  <DataLine label="Ingress trust" value={serverData.trusted ? "Trusted configured ingress" : "Not configured — network result is non-authoritative"} />
+                  <DataLine label="IP location" value={serverData.geoIp ? `${serverData.geoIp.city}, ${serverData.geoIp.country}` : "Unavailable"} />
+                  <DataLine label="ASN / organization" value={serverData.geoIp ? `${serverData.geoIp.asn} · ${serverData.geoIp.org}` : "Unavailable"} />
+                  <DataLine label="Anonymizer intelligence" value={formatAnonymizer(serverData)} />
+                  <DataLine label="JA4 / HTTP" value={`${serverData.ja4} · ${serverData.httpProtocol}`} />
                   <DataLine label="Browser timezone" value={`${fingerprint.timezone.name} · UTC ${formatOffset(fingerprint.timezone.offsetMinutes)}`} />
-                  <DataLine label="IP timezone" value={fingerprint.geoIp ? `${fingerprint.geoIp.timezone} · UTC ${formatOffset(fingerprint.geoIp.utcOffsetMinutes)}` : "Unavailable"} />
+                  <DataLine label="IP timezone" value={serverData.geoIp ? `${serverData.geoIp.timezone} · UTC ${formatOffset(serverData.geoIp.utcOffsetMinutes)}` : "Unavailable"} />
                 </div>
               </Panel>
 
@@ -393,7 +435,7 @@ export default function Home() {
                 <PanelHeader icon={<Radio className="h-5 w-5" />} title="WebRTC candidate interpretation" subtitle="Host or mDNS candidates are not automatically classified as leaks." />
                 <div className="p-5 pt-3">
                   {fingerprint.webrtcCandidates.length === 0 ? (
-                    <EmptyState text="No ICE candidates were exposed. This may be a browser privacy policy, network condition, or unsupported API." compact />
+                    <EmptyState text={`No ICE candidates were exposed. Probe status: ${fingerprint.webrtcStatus || "legacy/unknown"}. Absence is not evidence that a VPN is off.`} compact />
                   ) : (
                     <div className="space-y-2">
                       {fingerprint.webrtcCandidates.map((candidate, index) => (
@@ -421,6 +463,7 @@ export default function Home() {
               <DataLine label="CPU" value={`${fingerprint.hardwareConcurrency ?? "unknown"} logical · ${fingerprint.hardwareBucket}`} />
               <DataLine label="Memory" value={`${fingerprint.deviceMemory ?? "unknown"} GB · ${fingerprint.memoryBucket}`} />
               <DataLine label="GPU family" value={fingerprint.webgl.rendererFamily} />
+              <DataLine label="Display profile" value={`${fingerprint.display?.colorGamut || "unknown"} · ${fingerprint.display?.dynamicRange || "unknown"} · ${fingerprint.display?.pointer || "unknown"}`} />
               <DataLine label="Touch points" value={String(fingerprint.touchPoints)} />
             </Panel>
             <Panel className="p-5">
@@ -430,6 +473,8 @@ export default function Home() {
               <DataLine label="Visible fonts" value={`${fingerprint.fonts.length} detected`} />
               <DataLine label="Speech voices" value={fingerprint.speechVoices ? `${fingerprint.speechVoices.count} voices (${fingerprint.speechVoices.osVoiceHint})` : "Unavailable"} />
               <DataLine label="OS consistency" value={fingerprint.environmentChecks?.osMatchStatus || "consistent"} />
+              <DataLine label="Media codecs" value={(fingerprint.mediaCapabilities || []).join(", ") || "Unavailable"} />
+              <DataLine label="Audio research" value={fingerprint.audio?.status || "legacy/unavailable"} />
               <DataLine label="Screen" value={`${fingerprint.screen.width}×${fingerprint.screen.height} @ ${fingerprint.screen.pixelRatioBucket}x`} />
             </Panel>
             <Panel className="p-5">
@@ -470,6 +515,15 @@ function PanelHeader({ icon, title, subtitle }: { icon: ReactNode; title: string
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="space-y-2"><span className="text-xs font-semibold text-slate-400">{label}</span>{children}</label>;
+}
+
+function CheckOption({ checked, onChange, title, detail }: { checked: boolean; onChange: (checked: boolean) => void; title: string; detail: string }) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-lg p-2 hover:bg-white/[0.025]">
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-1 h-4 w-4 accent-cyan-500" />
+      <span><span className="block text-sm font-semibold text-slate-200">{title}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{detail}</span></span>
+    </label>
+  );
 }
 
 function DemoStep({ number, title, detail }: { number: string; title: string; detail: string }) {
@@ -523,7 +577,7 @@ function ScorePill({ score }: { score: number }) {
 }
 
 function ScoreGauge({ score }: { score: number }) {
-  const color = score >= 35 ? "#fb7185" : score >= 10 ? "#fbbf24" : "#34d399";
+  const color = score >= 85 ? "#fb7185" : score >= 35 ? "#fbbf24" : "#34d399";
   return (
     <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full" style={{ background: `conic-gradient(${color} ${score * 3.6}deg, rgba(255,255,255,.06) 0deg)` }}>
       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#091522] font-mono text-xl font-black text-white">{score}</div>
@@ -560,4 +614,16 @@ function formatOffset(minutes: number | null): string {
   const sign = minutes >= 0 ? "+" : "−";
   const absolute = Math.abs(minutes);
   return `${sign}${String(Math.floor(absolute / 60)).padStart(2, "0")}:${String(absolute % 60).padStart(2, "0")}`;
+}
+
+function formatAnonymizer(server: ServerNetworkData): string {
+  const flags = [
+    server.anonymizer.isAnonymousVpn ? "VPN" : "",
+    server.anonymizer.isPublicProxy ? "public proxy" : "",
+    server.anonymizer.isResidentialProxy ? "residential proxy" : "",
+    server.anonymizer.isTorExitNode ? "Tor" : "",
+    server.anonymizer.isHostingProvider ? "hosting" : "",
+  ].filter(Boolean);
+  const confidence = server.anonymizer.confidence === null ? "" : ` · confidence ${server.anonymizer.confidence}/99`;
+  return flags.length ? `${flags.join(", ")} · ${server.anonymizer.providerName}${confidence}` : `No positive flag · source ${server.anonymizer.source}`;
 }

@@ -31,6 +31,7 @@ export interface ObservationMatch {
 }
 
 function available(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length > 0;
   return value !== null && value !== undefined && value !== "" && value !== "unknown" && value !== "Unknown" && value !== "unavailable";
 }
 
@@ -96,7 +97,8 @@ export function compareDevices(current: FingerprintData, previous: FingerprintDa
     component("Color depth", 5, current.colorDepth, previous.colorDepth, exact(current.colorDepth, previous.colorDepth)),
     component("Touch capability", 5, current.touchPoints > 0, previous.touchPoints > 0, exact(current.touchPoints > 0, previous.touchPoints > 0)),
     component("GPU family", 14, current.webgl.rendererFamily, previous.webgl.rendererFamily, exact(current.webgl.rendererFamily, previous.webgl.rendererFamily)),
-    component("Timezone offset", 4, current.timezone.offsetMinutes, previous.timezone.offsetMinutes, numericCloseness(current.timezone.offsetMinutes, previous.timezone.offsetMinutes, 120)),
+    component("Color gamut", 3, current.display?.colorGamut, previous.display?.colorGamut, exact(current.display?.colorGamut, previous.display?.colorGamut)),
+    component("Pointer class", 3, current.display?.pointer, previous.display?.pointer, exact(current.display?.pointer, previous.display?.pointer)),
   ];
   return summarize(components);
 }
@@ -108,8 +110,11 @@ export function compareSameBrowser(current: FingerprintData, previous: Fingerpri
     component("Browser major", 4, current.browserMajor, previous.browserMajor, exact(current.browserMajor, previous.browserMajor)),
     component("Canvas rendering", 12, current.canvas.hash, previous.canvas.hash, exact(current.canvas.hash, previous.canvas.hash)),
     component("WebGL parameters", 10, current.webgl.parameterHash, previous.webgl.parameterHash, exact(current.webgl.parameterHash, previous.webgl.parameterHash)),
+    component("WebGL render", 5, current.webgl.renderHash, previous.webgl.renderHash, exact(current.webgl.renderHash, previous.webgl.renderHash)),
     component("Font set", 8, current.fonts, previous.fonts, jaccard(current.fonts, previous.fonts)),
     component("Capability set", 6, current.capabilities, previous.capabilities, jaccard(current.capabilities, previous.capabilities)),
+    component("Media codec set", 5, current.mediaCapabilities, previous.mediaCapabilities, jaccard(current.mediaCapabilities || [], previous.mediaCapabilities || [])),
+    component("Audio rendering", 4, current.audio?.hash, previous.audio?.hash, exact(current.audio?.hash, previous.audio?.hash)),
   ];
   return summarize(components);
 }
@@ -122,7 +127,7 @@ export function compareObservations(current: ResearchObservation, previous: Rese
     browserFamily: previous.fingerprint.browserFamily,
     browserMode: previous.browserMode,
     vpnGroundTruth: previous.vpnGroundTruth,
-    collectedAt: previous.fingerprint.collectedAt,
+    collectedAt: previous.serverReceivedAt || previous.fingerprint.collectedAt,
     deviceSimilarity: compareDevices(current.fingerprint, previous.fingerprint),
     sameBrowserSimilarity: sameBrowser ? compareSameBrowser(current.fingerprint, previous.fingerprint) : null,
     ipChanged: Boolean(current.effectivePublicIp && previous.effectivePublicIp && current.effectivePublicIp !== previous.effectivePublicIp),

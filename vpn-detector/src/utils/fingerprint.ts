@@ -1,7 +1,22 @@
-export const FINGERPRINT_SCHEMA_VERSION = "2.0.0";
+import type { DeviceLocation, GeoIpData, NetworkPathProbe, ServerNetworkData } from "./network";
+import type { RiskAssessment } from "./risk";
+
+export const FINGERPRINT_SCHEMA_VERSION = "3.0.0";
+export const CONSENT_VERSION = "2026-08-31-v1";
 
 export type BrowserMode = "normal" | "private" | "unknown";
-export type VpnGroundTruth = "off" | "on" | "unknown";
+export type VpnGroundTruth =
+  | "none"
+  | "consumer-vpn"
+  | "corporate-vpn"
+  | "split-tunnel"
+  | "tor"
+  | "public-proxy"
+  | "residential-proxy"
+  | "private-relay"
+  | "unknown"
+  | "off"
+  | "on";
 export type CandidateType = "host" | "srflx" | "relay" | "prflx" | "unknown";
 
 export interface WebRTCCandidate {
@@ -10,17 +25,6 @@ export interface WebRTCCandidate {
   protocol: string;
   addressFamily: "ipv4" | "ipv6" | "mdns" | "unknown";
   isPublic: boolean;
-}
-
-export interface GeoIpData {
-  ip: string;
-  city: string;
-  country: string;
-  countryCode: string;
-  timezone: string;
-  utcOffsetMinutes: number | null;
-  org: string;
-  asn: string;
 }
 
 export interface FingerprintData {
@@ -60,15 +64,39 @@ export interface FingerprintData {
     renderer: string;
     rendererFamily: string;
     parameterHash: string;
+    renderHash?: string;
   };
   fonts: string[];
   capabilities: string[];
+  mediaCapabilities?: string[];
+  display?: {
+    availableWidthBucket: number;
+    availableHeightBucket: number;
+    orientation: string;
+    colorGamut: string;
+    dynamicRange: string;
+    pointer: string;
+    hover: string;
+    reducedMotion: boolean;
+  };
+  storage?: {
+    cookies: boolean;
+    localStorage: boolean;
+    sessionStorage: boolean;
+    indexedDb: boolean;
+  };
+  audio?: {
+    status: "collected" | "disabled" | "unsupported" | "failed";
+    hash: string;
+    sampleRate: number | null;
+  };
   connection: {
     effectiveType: string;
     downlink: number | null;
     rtt: number | null;
   } | null;
   webrtcCandidates: WebRTCCandidate[];
+  webrtcStatus?: "configured" | "not-configured" | "unsupported" | "failed";
   geoIp: GeoIpData | null;
   speechVoices?: {
     count: number;
@@ -83,6 +111,10 @@ export interface FingerprintData {
     browser: string;
     coarseDevice: string;
   };
+  collectionContext?: {
+    highEntropyResearch: boolean;
+    collectorVersion: string;
+  };
 }
 
 export interface ResearchObservation {
@@ -93,6 +125,37 @@ export interface ResearchObservation {
   fingerprint: FingerprintData;
   serverSeenIp: string;
   effectivePublicIp: string;
+  serverReceivedAt?: string;
+  studyId?: string;
+  consentVersion?: string;
+  serverNetwork?: ServerNetworkData;
+  pathProbes?: NetworkPathProbe[];
+  deviceLocation?: DeviceLocation | null;
+  groundTruthDetails?: {
+    providerCode: string;
+    protocol: string;
+    exitCountry: string;
+  };
+  riskAssessment?: RiskAssessment;
+  protectedComponents?: Record<string, string>;
+}
+
+export interface ObservationSubmission {
+  deviceLabel: string;
+  browserMode: BrowserMode;
+  vpnGroundTruth: VpnGroundTruth;
+  fingerprint: FingerprintData;
+  pathProbes: NetworkPathProbe[];
+  deviceLocation: DeviceLocation | null;
+  highEntropyResearch: boolean;
+  consentAcknowledged: boolean;
+  studyId: string;
+  groundTruthDetails: {
+    providerCode: string;
+    protocol: string;
+    exitCountry: string;
+  };
+  scanChallenge: string;
 }
 
 const FONTS_TO_CHECK = [
@@ -190,7 +253,7 @@ function candidateFamily(address: string): WebRTCCandidate["addressFamily"] {
   return "unknown";
 }
 
-async function getWebRTCCandidates(): Promise<WebRTCCandidate[]> {
+async function getWebRTCCandidates(stunUrl: string): Promise<WebRTCCandidate[]> {
   return new Promise((resolve) => {
     const candidates = new Map<string, WebRTCCandidate>();
     const PeerConnection = window.RTCPeerConnection;
@@ -200,7 +263,7 @@ async function getWebRTCCandidates(): Promise<WebRTCCandidate[]> {
     }
 
     let settled = false;
-    const peer = new PeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+    const peer = new PeerConnection({ iceServers: [{ urls: stunUrl }] });
     const finish = () => {
       if (settled) return;
       settled = true;
@@ -277,7 +340,7 @@ async function getWebGLFingerprint(): Promise<FingerprintData["webgl"]> {
   try {
     const canvas = document.createElement("canvas");
     const gl = canvas.getContext("webgl");
-    if (!gl) return { vendor: "unsupported", renderer: "unsupported", rendererFamily: "unknown", parameterHash: "unavailable" };
+    if (!gl) return { vendor: "unsupported", renderer: "unsupported", rendererFamily: "unknown", parameterHash: "unavailable", renderHash: "unavailable" };
 
     const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
     const vendor = debugInfo ? String(gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL)) : String(gl.getParameter(gl.VENDOR));
@@ -289,13 +352,32 @@ async function getWebGLFingerprint(): Promise<FingerprintData["webgl"]> {
       version: String(gl.getParameter(gl.VERSION)),
       shadingLanguage: String(gl.getParameter(gl.SHADING_LANGUAGE_VERSION)),
       maxTextureSize: Number(gl.getParameter(gl.MAX_TEXTURE_SIZE)),
+      maxCubeMapTextureSize: Number(gl.getParameter(gl.MAX_CUBE_MAP_TEXTURE_SIZE)),
       maxRenderbufferSize: Number(gl.getParameter(gl.MAX_RENDERBUFFER_SIZE)),
+      maxViewportDims: Array.from(gl.getParameter(gl.MAX_VIEWPORT_DIMS) as Int32Array),
+      aliasedLineWidthRange: Array.from(gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE) as Float32Array),
+      aliasedPointSizeRange: Array.from(gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE) as Float32Array),
+      redBits: Number(gl.getParameter(gl.RED_BITS)),
+      greenBits: Number(gl.getParameter(gl.GREEN_BITS)),
+      blueBits: Number(gl.getParameter(gl.BLUE_BITS)),
+      alphaBits: Number(gl.getParameter(gl.ALPHA_BITS)),
+      depthBits: Number(gl.getParameter(gl.DEPTH_BITS)),
+      stencilBits: Number(gl.getParameter(gl.STENCIL_BITS)),
       extensions: (gl.getSupportedExtensions() ?? []).sort(),
     };
-
-    return { vendor, renderer, rendererFamily, parameterHash: await sha256(stableStringify(parameters)) };
+    gl.clearColor(0.17, 0.43, 0.71, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    const pixels = new Uint8Array(4 * 16 * 16);
+    gl.readPixels(0, 0, 16, 16, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    return {
+      vendor,
+      renderer,
+      rendererFamily,
+      parameterHash: await sha256(stableStringify(parameters)),
+      renderHash: await sha256(Array.from(pixels).join(",")),
+    };
   } catch {
-    return { vendor: "unavailable", renderer: "unavailable", rendererFamily: "unknown", parameterHash: "unavailable" };
+    return { vendor: "unavailable", renderer: "unavailable", rendererFamily: "unknown", parameterHash: "unavailable", renderHash: "unavailable" };
   }
 }
 
@@ -355,35 +437,6 @@ function getCapabilities(): string[] {
   return checks.filter(([, supported]) => supported).map(([name]) => name).sort();
 }
 
-function parseUtcOffset(value: unknown): number | null {
-  if (typeof value !== "string") return null;
-  const match = value.match(/^([+-])(\d{2}):?(\d{2})$/);
-  if (!match) return null;
-  const minutes = Number(match[2]) * 60 + Number(match[3]);
-  return match[1] === "+" ? minutes : -minutes;
-}
-
-async function getGeoIp(): Promise<GeoIpData | null> {
-  try {
-    const response = await fetch("https://ipapi.co/json/", { cache: "no-store" });
-    if (!response.ok) return null;
-    const data = await response.json();
-    if (!data.ip) return null;
-    return {
-      ip: String(data.ip),
-      city: String(data.city || "Unknown"),
-      country: String(data.country_name || "Unknown"),
-      countryCode: String(data.country_code || "Unknown"),
-      timezone: String(data.timezone || "Unknown"),
-      utcOffsetMinutes: parseUtcOffset(data.utc_offset),
-      org: String(data.org || "Unknown"),
-      asn: String(data.asn || "Unknown"),
-    };
-  } catch {
-    return null;
-  }
-}
-
 async function getHighEntropyHints(): Promise<{ architecture: string; bitness: string }> {
   try {
     const userAgentData = (navigator as Navigator & {
@@ -394,6 +447,89 @@ async function getHighEntropyHints(): Promise<{ architecture: string; bitness: s
     return { architecture: values.architecture || "unknown", bitness: values.bitness || "unknown" };
   } catch {
     return { architecture: "unknown", bitness: "unknown" };
+  }
+}
+
+function getMediaCapabilities(): string[] {
+  const video = document.createElement("video");
+  const audio = document.createElement("audio");
+  const tests: Array<[string, string, HTMLMediaElement]> = [
+    ["h264", 'video/mp4; codecs="avc1.42E01E"', video],
+    ["vp8", 'video/webm; codecs="vp8"', video],
+    ["vp9", 'video/webm; codecs="vp9"', video],
+    ["av1", 'video/mp4; codecs="av01.0.05M.08"', video],
+    ["hevc", 'video/mp4; codecs="hvc1.1.6.L93.B0"', video],
+    ["aac", 'audio/mp4; codecs="mp4a.40.2"', audio],
+    ["opus", 'audio/ogg; codecs="opus"', audio],
+    ["flac", "audio/flac", audio],
+  ];
+  return tests
+    .filter(([, mime, element]) => element.canPlayType(mime) !== "")
+    .map(([name]) => name)
+    .sort();
+}
+
+function mediaQueryValue(values: string[], feature: string): string {
+  return values.find((value) => window.matchMedia(`(${feature}: ${value})`).matches) || "unknown";
+}
+
+function getDisplayProfile(): NonNullable<FingerprintData["display"]> {
+  return {
+    availableWidthBucket: roundTo(window.screen.availWidth, 100),
+    availableHeightBucket: roundTo(window.screen.availHeight, 100),
+    orientation: window.screen.orientation?.type || "unknown",
+    colorGamut: mediaQueryValue(["rec2020", "p3", "srgb"], "color-gamut"),
+    dynamicRange: mediaQueryValue(["high", "standard"], "dynamic-range"),
+    pointer: mediaQueryValue(["fine", "coarse", "none"], "pointer"),
+    hover: mediaQueryValue(["hover", "none"], "hover"),
+    reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  };
+}
+
+function storageAvailable(kind: "localStorage" | "sessionStorage"): boolean {
+  try {
+    const storage = window[kind];
+    const key = "__vpn_research_probe__";
+    storage.setItem(key, "1");
+    storage.removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getStorageProfile(): NonNullable<FingerprintData["storage"]> {
+  return {
+    cookies: navigator.cookieEnabled,
+    localStorage: storageAvailable("localStorage"),
+    sessionStorage: storageAvailable("sessionStorage"),
+    indexedDb: "indexedDB" in window,
+  };
+}
+
+async function getAudioFingerprint(enabled: boolean): Promise<NonNullable<FingerprintData["audio"]>> {
+  if (!enabled) return { status: "disabled", hash: "disabled", sampleRate: null };
+  const OfflineContext = window.OfflineAudioContext;
+  if (!OfflineContext) return { status: "unsupported", hash: "unsupported", sampleRate: null };
+  try {
+    const context = new OfflineContext(1, 4_096, 44_100);
+    const oscillator = context.createOscillator();
+    const compressor = context.createDynamicsCompressor();
+    oscillator.type = "triangle";
+    oscillator.frequency.value = 10_000;
+    compressor.threshold.value = -50;
+    compressor.knee.value = 40;
+    compressor.ratio.value = 12;
+    compressor.attack.value = 0;
+    compressor.release.value = 0.25;
+    oscillator.connect(compressor);
+    compressor.connect(context.destination);
+    oscillator.start(0);
+    const buffer = await context.startRendering();
+    const samples = Array.from(buffer.getChannelData(0).slice(512, 1_024)).map((value) => value.toFixed(7));
+    return { status: "collected", hash: await sha256(samples.join(",")), sampleRate: buffer.sampleRate };
+  } catch {
+    return { status: "failed", hash: "failed", sampleRate: null };
   }
 }
 
@@ -486,7 +622,7 @@ function evaluateEnvironment(
   return { osMatchStatus, notes };
 }
 
-export async function generateClientFingerprint(): Promise<FingerprintData> {
+export async function generateClientFingerprint(options: { stunUrl?: string; highEntropyResearch?: boolean } = {}): Promise<FingerprintData> {
   const nav = navigator as Navigator & {
     deviceMemory?: number;
     connection?: { effectiveType?: string; downlink?: number; rtt?: number };
@@ -502,8 +638,27 @@ export async function generateClientFingerprint(): Promise<FingerprintData> {
   const webgl = await getWebGLFingerprint();
   const fonts = getInstalledFonts();
   const capabilities = getCapabilities();
-  const speechVoices = await getSpeechVoices();
+  const highEntropyResearch = Boolean(options.highEntropyResearch);
+  const speechVoices = highEntropyResearch
+    ? await getSpeechVoices()
+    : { count: 0, sample: [], osVoiceHint: "disabled" };
   const environmentChecks = evaluateEnvironment(osFamily, fonts, speechVoices, webgl);
+  const mediaCapabilities = getMediaCapabilities();
+  const display = getDisplayProfile();
+  const storage = getStorageProfile();
+  const audio = await getAudioFingerprint(highEntropyResearch);
+  const webrtcSupported = "RTCPeerConnection" in window;
+  let webrtcStatus: FingerprintData["webrtcStatus"] = options.stunUrl ? "configured" : "not-configured";
+  let webrtcCandidates: WebRTCCandidate[] = [];
+  if (!webrtcSupported) {
+    webrtcStatus = "unsupported";
+  } else if (options.stunUrl) {
+    try {
+      webrtcCandidates = await getWebRTCCandidates(options.stunUrl);
+    } catch {
+      webrtcStatus = "failed";
+    }
+  }
   const timezone = {
     name: Intl.DateTimeFormat().resolvedOptions().timeZone || "Unknown",
     offsetMinutes: -new Date().getTimezoneOffset(),
@@ -539,6 +694,10 @@ export async function generateClientFingerprint(): Promise<FingerprintData> {
     webgl,
     fonts,
     capabilities,
+    mediaCapabilities,
+    display,
+    storage,
+    audio,
     speechVoices,
     environmentChecks,
     connection: nav.connection ? {
@@ -546,8 +705,13 @@ export async function generateClientFingerprint(): Promise<FingerprintData> {
       downlink: nav.connection.downlink ?? null,
       rtt: nav.connection.rtt ?? null,
     } : null,
-    webrtcCandidates: await getWebRTCCandidates(),
-    geoIp: await getGeoIp(),
+    webrtcCandidates,
+    webrtcStatus,
+    geoIp: null,
+    collectionContext: {
+      highEntropyResearch,
+      collectorVersion: FINGERPRINT_SCHEMA_VERSION,
+    },
   };
 
   const browserSignatureInput = {
@@ -564,6 +728,9 @@ export async function generateClientFingerprint(): Promise<FingerprintData> {
     webgl: base.webgl.parameterHash,
     fonts: base.fonts,
     capabilities: base.capabilities,
+    mediaCapabilities: base.mediaCapabilities,
+    display: base.display,
+    audio: base.audio.status === "collected" ? base.audio.hash : base.audio.status,
   };
   const deviceSignatureInput = {
     schema: base.schemaVersion,
@@ -576,6 +743,11 @@ export async function generateClientFingerprint(): Promise<FingerprintData> {
     touch: base.touchPoints > 0,
     colorDepth: base.colorDepth,
     gpuFamily: base.webgl.rendererFamily,
+    display: {
+      colorGamut: base.display.colorGamut,
+      dynamicRange: base.display.dynamicRange,
+      pointer: base.display.pointer,
+    },
   };
 
   return {

@@ -15,9 +15,10 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import type { ResearchObservation } from "@/utils/fingerprint";
+import type { ModelEvaluation } from "@/utils/evaluation";
 import { compareDevices, compareSameBrowser, type SimilarityResult } from "@/utils/similarity";
 
-export default function ObservationsDashboard({ initialObservations }: { initialObservations: ResearchObservation[] }) {
+export default function ObservationsDashboard({ initialObservations, evaluation }: { initialObservations: ResearchObservation[]; evaluation: ModelEvaluation }) {
   const [search, setSearch] = useState("");
   const [browserFilter, setBrowserFilter] = useState("all");
   const [modeFilter, setModeFilter] = useState("all");
@@ -33,8 +34,8 @@ export default function ObservationsDashboard({ initialObservations }: { initial
         item.fingerprint.browserFamily,
         item.fingerprint.osFamily,
         item.effectivePublicIp,
-        item.fingerprint.geoIp?.country,
-        item.fingerprint.geoIp?.org,
+        item.serverNetwork?.geoIp?.country || item.fingerprint.geoIp?.country,
+        item.serverNetwork?.geoIp?.org || item.fingerprint.geoIp?.org,
       ].some((value) => String(value || "").toLowerCase().includes(term));
       return matchesSearch && (browserFilter === "all" || item.fingerprint.browserFamily === browserFilter) && (modeFilter === "all" || item.browserMode === modeFilter);
     });
@@ -60,7 +61,7 @@ export default function ObservationsDashboard({ initialObservations }: { initial
     : null;
   const uniqueIps = new Set(initialObservations.map((item) => item.effectivePublicIp).filter((value) => value && value !== "Unknown")).size;
   const privateRuns = initialObservations.filter((item) => item.browserMode === "private").length;
-  const vpnRuns = initialObservations.filter((item) => item.vpnGroundTruth === "on").length;
+  const vpnRuns = initialObservations.filter((item) => isPositiveGroundTruth(item.vpnGroundTruth)).length;
 
   return (
     <main className="min-h-screen bg-[#07111f] text-slate-100">
@@ -85,6 +86,15 @@ export default function ObservationsDashboard({ initialObservations }: { initial
           <Stat icon={<ShieldCheck className="h-5 w-5" />} label="Private / VPN runs" value={`${privateRuns} / ${vpnRuns}`} tone="green" />
         </section>
 
+        <section className="mt-5 grid gap-3 rounded-2xl border border-white/10 bg-[#0b1827] p-4 sm:grid-cols-2 xl:grid-cols-6">
+          <EvaluationMetric label="Labelled rows" value={String(evaluation.labelled)} />
+          <EvaluationMetric label="Precision @ 50%" value={formatMetric(evaluation.precision)} />
+          <EvaluationMetric label="Recall @ 50%" value={formatMetric(evaluation.recall)} />
+          <EvaluationMetric label="Specificity" value={formatMetric(evaluation.specificity)} />
+          <EvaluationMetric label="PR-AUC" value={formatMetric(evaluation.prAuc)} />
+          <EvaluationMetric label="Brier (lower better)" value={evaluation.brierScore === null ? "n/a" : evaluation.brierScore.toFixed(3)} />
+        </section>
+
         <section className="mt-5 grid gap-5 xl:grid-cols-[.82fr_1.18fr]">
           <Panel>
             <PanelHeader icon={<Laptop className="h-5 w-5" />} title="Devices at a glance" subtitle="Groups use the manual research label, not an inferred identity." />
@@ -97,7 +107,7 @@ export default function ObservationsDashboard({ initialObservations }: { initial
                     <div key={label} className="rounded-xl border border-white/10 bg-white/[0.025] p-4">
                       <div className="flex items-start justify-between gap-3"><div><p className="font-bold text-white">{label}</p><p className="mt-1 text-xs text-slate-500">Last seen {formatTimestamp(items[0].fingerprint.collectedAt)}</p></div><span className="rounded-full bg-cyan-400/10 px-2.5 py-1 font-mono text-xs font-bold text-cyan-300">{items.length}</span></div>
                       <div className="mt-4 flex flex-wrap gap-1.5">{groupBrowsers.map((browser) => <Pill key={browser}>{browser}</Pill>)}</div>
-                      <div className="mt-4 grid grid-cols-3 gap-2 text-center"><MiniStat label="IPs" value={groupIps.size} /><MiniStat label="Private" value={items.filter((item) => item.browserMode === "private").length} /><MiniStat label="VPN on" value={items.filter((item) => item.vpnGroundTruth === "on").length} /></div>
+                      <div className="mt-4 grid grid-cols-3 gap-2 text-center"><MiniStat label="IPs" value={groupIps.size} /><MiniStat label="Private" value={items.filter((item) => item.browserMode === "private").length} /><MiniStat label="Anonymizer" value={items.filter((item) => isPositiveGroundTruth(item.vpnGroundTruth)).length} /></div>
                     </div>
                   );
                 })}
@@ -142,8 +152,8 @@ export default function ObservationsDashboard({ initialObservations }: { initial
                     <tr key={item.observationId} className="align-top hover:bg-white/[0.02]">
                       <td className="px-5 py-4"><p className="font-bold text-white">{item.deviceLabel}</p><p className="mt-1 text-xs text-slate-500">{formatTimestamp(item.fingerprint.collectedAt)}</p><p className="mt-1 font-mono text-[10px] text-slate-700">{item.observationId.slice(0, 12)}…</p></td>
                       <td className="px-4 py-4"><p className="font-semibold text-slate-200">{item.fingerprint.browserFamily} {item.fingerprint.browserMajor}</p><p className="mt-1 text-xs text-slate-500">{item.fingerprint.osFamily} · {item.fingerprint.platform}</p></td>
-                      <td className="px-4 py-4"><div className="flex gap-1.5"><Pill>{item.browserMode}</Pill><Pill>{`VPN ${item.vpnGroundTruth}`}</Pill></div></td>
-                      <td className="px-4 py-4"><p className="font-mono text-xs text-cyan-300">{item.effectivePublicIp}</p><p className="mt-1 max-w-[240px] text-xs text-slate-500">{item.fingerprint.geoIp ? `${item.fingerprint.geoIp.city}, ${item.fingerprint.geoIp.country} · ${item.fingerprint.geoIp.org}` : "GeoIP unavailable"}</p></td>
+                      <td className="px-4 py-4"><div className="flex flex-wrap gap-1.5"><Pill>{item.browserMode}</Pill><Pill>{item.vpnGroundTruth}</Pill>{item.riskAssessment && <Pill>{`${item.riskAssessment.score}% ${item.riskAssessment.band}`}</Pill>}</div></td>
+                      <td className="px-4 py-4"><p className="font-mono text-xs text-cyan-300">{item.effectivePublicIp}</p><p className="mt-1 max-w-[240px] text-xs text-slate-500">{item.serverNetwork?.geoIp ? `${item.serverNetwork.geoIp.city}, ${item.serverNetwork.geoIp.country} · ${item.serverNetwork.geoIp.org}` : item.fingerprint.geoIp ? `${item.fingerprint.geoIp.city}, ${item.fingerprint.geoIp.country} · ${item.fingerprint.geoIp.org}` : "GeoIP unavailable"}</p></td>
                       <td className="px-4 py-4 text-xs text-slate-400"><p>{item.fingerprint.hardwareBucket} CPU · {item.fingerprint.memoryBucket} RAM</p><p className="mt-1">{item.fingerprint.screen.width}×{item.fingerprint.screen.height} · {item.fingerprint.webgl.rendererFamily}</p><p className="mt-1">{item.fingerprint.fonts.length} fonts · {item.fingerprint.capabilities.length} capabilities</p></td>
                       <td className="px-5 py-4 font-mono text-[10px] text-slate-500"><p title={item.fingerprint.signatures.coarseDevice}>device {item.fingerprint.signatures.coarseDevice.slice(0, 14)}…</p><p className="mt-1" title={item.fingerprint.signatures.browser}>browser {item.fingerprint.signatures.browser.slice(0, 14)}…</p></td>
                     </tr>
@@ -166,6 +176,8 @@ function PanelHeader({ icon, title, subtitle }: { icon: ReactNode; title: string
 const statTones = { cyan: "text-cyan-300 bg-cyan-400/10", violet: "text-violet-300 bg-violet-400/10", blue: "text-blue-300 bg-blue-400/10", amber: "text-amber-300 bg-amber-400/10", green: "text-emerald-300 bg-emerald-400/10" };
 function Stat({ icon, label, value, tone }: { icon: ReactNode; label: string; value: string | number; tone: keyof typeof statTones }) { return <div className="rounded-2xl border border-white/10 bg-[#0b1827] p-4"><div className={`inline-flex rounded-xl p-2 ${statTones[tone]}`}>{icon}</div><p className="mt-4 text-2xl font-black text-white">{value}</p><p className="mt-1 text-xs text-slate-500">{label}</p></div>; }
 function MiniStat({ label, value }: { label: string; value: number }) { return <div className="rounded-lg bg-black/10 p-2"><p className="font-mono text-sm font-bold text-slate-200">{value}</p><p className="mt-0.5 text-[9px] uppercase tracking-wider text-slate-600">{label}</p></div>; }
+function EvaluationMetric({ label, value }: { label: string; value: string }) { return <div className="rounded-xl bg-black/10 p-3"><p className="font-mono text-lg font-black text-cyan-300">{value}</p><p className="mt-1 text-[9px] uppercase tracking-wider text-slate-600">{label}</p></div>; }
+function formatMetric(value: number | null): string { return value === null ? "n/a" : `${Math.round(value * 100)}%`; }
 function Pill({ children }: { children: ReactNode }) { return <span className="inline-flex rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">{children}</span>; }
 function Empty({ text }: { text: string }) { return <div className="p-8 text-center text-sm text-slate-500">{text}</div>; }
 
@@ -175,6 +187,10 @@ function ObservationSelect({ label, value, onChange, observations }: { label: st
 
 function formatTimestamp(value: string) {
   return `${new Date(value).toISOString().slice(0, 19).replace("T", " ")} UTC`;
+}
+
+function isPositiveGroundTruth(value: ResearchObservation["vpnGroundTruth"]): boolean {
+  return !["none", "off", "unknown"].includes(value);
 }
 
 function FilterSelect({ value, onChange, label, options }: { value: string; onChange: (value: string) => void; label: string; options: string[] }) {

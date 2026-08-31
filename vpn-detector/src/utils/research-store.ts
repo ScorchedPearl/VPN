@@ -37,6 +37,18 @@ async function ensureSchema(): Promise<void> {
       created_at timestamptz NOT NULL DEFAULT now()
     );
 
+    ALTER TABLE public.vpn_research_observations
+      ALTER COLUMN vpn_ground_truth TYPE varchar(32),
+      ADD COLUMN IF NOT EXISTS study_id varchar(60),
+      ADD COLUMN IF NOT EXISTS consent_version varchar(40),
+      ADD COLUMN IF NOT EXISTS server_received_at timestamptz,
+      ADD COLUMN IF NOT EXISTS server_network jsonb,
+      ADD COLUMN IF NOT EXISTS path_probes jsonb,
+      ADD COLUMN IF NOT EXISTS device_location jsonb,
+      ADD COLUMN IF NOT EXISTS ground_truth_details jsonb,
+      ADD COLUMN IF NOT EXISTS risk_assessment jsonb,
+      ADD COLUMN IF NOT EXISTS protected_components jsonb;
+
     CREATE INDEX IF NOT EXISTS vpn_research_observations_created_at_idx
       ON public.vpn_research_observations (created_at DESC);
 
@@ -68,9 +80,20 @@ export async function recentObservations(limit = 200): Promise<ResearchObservati
     fingerprint: ResearchObservation["fingerprint"];
     server_seen_ip: string;
     effective_public_ip: string;
+    study_id: string | null;
+    consent_version: string | null;
+    server_received_at: string | null;
+    server_network: ResearchObservation["serverNetwork"] | null;
+    path_probes: ResearchObservation["pathProbes"] | null;
+    device_location: ResearchObservation["deviceLocation"] | null;
+    ground_truth_details: ResearchObservation["groundTruthDetails"] | null;
+    risk_assessment: ResearchObservation["riskAssessment"] | null;
+    protected_components: ResearchObservation["protectedComponents"] | null;
   }>(`
     SELECT observation_id, device_label, browser_mode, vpn_ground_truth,
-           fingerprint, server_seen_ip, effective_public_ip
+           fingerprint, server_seen_ip, effective_public_ip, study_id,
+           consent_version, server_received_at, server_network, path_probes,
+           device_location, ground_truth_details, risk_assessment, protected_components
       FROM public.vpn_research_observations
      ORDER BY created_at DESC
      LIMIT $1
@@ -84,6 +107,15 @@ export async function recentObservations(limit = 200): Promise<ResearchObservati
     fingerprint: row.fingerprint,
     serverSeenIp: row.server_seen_ip,
     effectivePublicIp: row.effective_public_ip,
+    studyId: row.study_id || undefined,
+    consentVersion: row.consent_version || undefined,
+    serverReceivedAt: row.server_received_at || undefined,
+    serverNetwork: row.server_network || undefined,
+    pathProbes: row.path_probes || undefined,
+    deviceLocation: row.device_location,
+    groundTruthDetails: row.ground_truth_details || undefined,
+    riskAssessment: row.risk_assessment || undefined,
+    protectedComponents: row.protected_components || undefined,
   }));
 }
 
@@ -92,8 +124,10 @@ export async function saveObservation(observation: ResearchObservation): Promise
   await databasePool().query(`
     INSERT INTO public.vpn_research_observations (
       observation_id, device_label, browser_mode, vpn_ground_truth,
-      fingerprint, server_seen_ip, effective_public_ip
-    ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
+      fingerprint, server_seen_ip, effective_public_ip, study_id,
+      consent_version, server_received_at, server_network, path_probes,
+      device_location, ground_truth_details, risk_assessment, protected_components
+    ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb, $16::jsonb)
   `, [
     observation.observationId,
     observation.deviceLabel,
@@ -102,5 +136,24 @@ export async function saveObservation(observation: ResearchObservation): Promise
     JSON.stringify(observation.fingerprint),
     observation.serverSeenIp,
     observation.effectivePublicIp,
+    observation.studyId || null,
+    observation.consentVersion || null,
+    observation.serverReceivedAt || null,
+    JSON.stringify(observation.serverNetwork || null),
+    JSON.stringify(observation.pathProbes || []),
+    JSON.stringify(observation.deviceLocation || null),
+    JSON.stringify(observation.groundTruthDetails || null),
+    JSON.stringify(observation.riskAssessment || null),
+    JSON.stringify(observation.protectedComponents || null),
   ]);
+}
+
+export async function deleteObservationsOlderThan(days: number): Promise<number> {
+  await ensureSchema();
+  const safeDays = Math.max(1, Math.min(3650, Math.floor(days)));
+  const result = await databasePool().query(
+    "DELETE FROM public.vpn_research_observations WHERE created_at < now() - ($1::text || ' days')::interval",
+    [safeDays],
+  );
+  return result.rowCount || 0;
 }
