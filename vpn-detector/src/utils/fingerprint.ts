@@ -70,6 +70,15 @@ export interface FingerprintData {
   } | null;
   webrtcCandidates: WebRTCCandidate[];
   geoIp: GeoIpData | null;
+  speechVoices?: {
+    count: number;
+    sample: string[];
+    osVoiceHint: string;
+  };
+  environmentChecks?: {
+    osMatchStatus: "consistent" | "suspicious" | "indeterminate";
+    notes: string[];
+  };
   signatures: {
     browser: string;
     coarseDevice: string;
@@ -388,6 +397,95 @@ async function getHighEntropyHints(): Promise<{ architecture: string; bitness: s
   }
 }
 
+async function getSpeechVoices(): Promise<{ count: number; sample: string[]; osVoiceHint: string }> {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+    return { count: 0, sample: [], osVoiceHint: "unsupported" };
+  }
+  try {
+    let voices = window.speechSynthesis.getVoices();
+    if (voices.length === 0) {
+      await new Promise<void>((resolve) => {
+        const handler = () => {
+          voices = window.speechSynthesis.getVoices();
+          resolve();
+        };
+        window.speechSynthesis.onvoiceschanged = handler;
+        window.setTimeout(() => resolve(), 350);
+      });
+    }
+    const sample = voices.slice(0, 8).map((v) => `${v.name} (${v.lang})`);
+    let osVoiceHint = "unknown";
+    const allNames = voices.map((v) => v.name.toLowerCase()).join(" ");
+    if (
+      allNames.includes("samantha") ||
+      allNames.includes("karen") ||
+      allNames.includes("daniel") ||
+      allNames.includes("moira") ||
+      allNames.includes("siri") ||
+      allNames.includes("alex")
+    ) {
+      osVoiceHint = "macOS/iOS";
+    } else if (
+      allNames.includes("microsoft") ||
+      allNames.includes("david") ||
+      allNames.includes("zira") ||
+      allNames.includes("mark") ||
+      allNames.includes("cortana")
+    ) {
+      osVoiceHint = "Windows";
+    } else if (allNames.includes("google") || allNames.includes("android")) {
+      osVoiceHint = "Android/ChromeOS";
+    }
+    return { count: voices.length, sample, osVoiceHint };
+  } catch {
+    return { count: 0, sample: [], osVoiceHint: "error" };
+  }
+}
+
+function evaluateEnvironment(
+  osFamily: string,
+  fonts: string[],
+  speech: { count: number; sample: string[]; osVoiceHint: string },
+  webgl: FingerprintData["webgl"]
+): { osMatchStatus: "consistent" | "suspicious" | "indeterminate"; notes: string[] } {
+  const notes: string[] = [];
+  let suspicious = false;
+
+  // Speech synthesis voice check vs declared OS
+  if (speech.osVoiceHint !== "unknown" && speech.osVoiceHint !== "unsupported" && speech.osVoiceHint !== "error") {
+    if (osFamily.includes("Windows") && speech.osVoiceHint === "macOS/iOS") {
+      notes.push("User-Agent reports Windows, but system Speech Synthesis voices belong to Apple macOS/iOS.");
+      suspicious = true;
+    } else if ((osFamily.includes("macOS") || osFamily.includes("iOS")) && speech.osVoiceHint === "Windows") {
+      notes.push("User-Agent reports macOS/iOS, but system Speech Synthesis voices belong to Microsoft Windows.");
+      suspicious = true;
+    }
+  }
+
+  // System font metrics vs declared OS
+  const hasWindowsExclusiveFonts = fonts.some((f) =>
+    ["Segoe UI", "Calibri", "Cambria", "Consolas", "Constantia", "Corbel"].includes(f)
+  );
+  const hasAppleExclusiveFonts = fonts.some((f) =>
+    ["Menlo", "Monaco", "Apple Color Emoji", "Lucida Grande"].includes(f)
+  );
+  if (osFamily.includes("macOS") && hasWindowsExclusiveFonts && !hasAppleExclusiveFonts) {
+    notes.push("Client declares macOS, but detected font inventory matches Microsoft Windows.");
+    suspicious = true;
+  } else if (osFamily.includes("Windows") && hasAppleExclusiveFonts && !hasWindowsExclusiveFonts) {
+    notes.push("Client declares Windows, but detected font inventory matches Apple macOS.");
+    suspicious = true;
+  }
+
+  // Virtualized software WebGL renderer check
+  if (webgl.rendererFamily === "software-renderer") {
+    notes.push("WebGL relies on a virtual software renderer (SwiftShader/llvmpipe), common in headless cloud nodes.");
+  }
+
+  const osMatchStatus = suspicious ? "suspicious" : notes.length === 0 ? "consistent" : "indeterminate";
+  return { osMatchStatus, notes };
+}
+
 export async function generateClientFingerprint(): Promise<FingerprintData> {
   const nav = navigator as Navigator & {
     deviceMemory?: number;
@@ -404,6 +502,8 @@ export async function generateClientFingerprint(): Promise<FingerprintData> {
   const webgl = await getWebGLFingerprint();
   const fonts = getInstalledFonts();
   const capabilities = getCapabilities();
+  const speechVoices = await getSpeechVoices();
+  const environmentChecks = evaluateEnvironment(osFamily, fonts, speechVoices, webgl);
   const timezone = {
     name: Intl.DateTimeFormat().resolvedOptions().timeZone || "Unknown",
     offsetMinutes: -new Date().getTimezoneOffset(),
@@ -439,6 +539,8 @@ export async function generateClientFingerprint(): Promise<FingerprintData> {
     webgl,
     fonts,
     capabilities,
+    speechVoices,
+    environmentChecks,
     connection: nav.connection ? {
       effectiveType: nav.connection.effectiveType || "unknown",
       downlink: nav.connection.downlink ?? null,

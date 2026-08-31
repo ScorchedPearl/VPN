@@ -80,17 +80,17 @@ export default function App() {
           </Reveal>
           <div className="cols" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
             {[
-              ['01', 'Network', 'Where does the public IP place the user?', '#30c9f4'],
-              ['02', 'Browser', 'What browser is actually running?', '#62e6b7'],
-              ['03', 'Hardware', 'What device is behind the session?', '#f2c94c'],
-              ['04', 'Anomaly', 'Do the signals tell one consistent story?', '#ff6b6b'],
+              ['01', 'Network / Packet', 'Server-side MTU clamping, p0f OS stack, and Datacenter ASN', '#30c9f4'],
+              ['02', 'Browser / JS', 'System timezone, WebRTC STUN, speech voices, and font metrics', '#62e6b7'],
+              ['03', 'Hardware', 'Off-screen WebGL GPU architecture and hardware specs', '#f2c94c'],
+              ['04', 'Inconsistency', 'Single-session contradiction proofs (No device collision risk)', '#ff6b6b'],
             ].map(([n, title, body, color]) => (
               <Reveal key={n} delay={Number(n) * 0.06}>
                 <div className="mat" style={{ ...cardStyle, minHeight: 230, display: 'flex', flexDirection: 'column', gap: 18 }}>
                   {signalIcon(color, n)}
                   <div>
-                    <h3 style={{ fontSize: 22, marginBottom: 10 }}>{title}</h3>
-                    <p style={{ color: 'var(--fg-muted)', lineHeight: 1.55 }}>{body}</p>
+                    <h3 style={{ fontSize: 21, marginBottom: 10 }}>{title}</h3>
+                    <p style={{ color: 'var(--fg-muted)', lineHeight: 1.55, fontSize: 14 }}>{body}</p>
                   </div>
                   <div style={{ marginTop: 'auto', height: 2, width: '54%', background: color, opacity: 0.75 }} />
                 </div>
@@ -102,13 +102,13 @@ export default function App() {
 
       <Steps
         nav="Collection engine"
-        notes="This is the end-to-end collection flow. The important point is that the prototype does not rely on a single browser trick."
+        notes="This is the end-to-end collection flow. The important point is that the prototype does not rely on fragile cross-session device guessing."
         kicker="Prototype flow"
-        title="Collect broadly. Compare continuously."
+        title="Collect broadly. Prove single-session contradictions."
         items={[
-          { title: 'Collect', body: 'Capture IP, headers, client hints, WebRTC, canvas, WebGL, fonts, and device specs.' },
-          { title: 'Normalize', body: 'Turn raw browser and network observations into comparable signals.' },
-          { title: 'Detect', body: 'Surface mismatches that are difficult for a VPN or proxy to hide at the same time.' },
+          { title: 'Pre-flight & JS Telemetry', body: 'Capture server-side MTU/ASN, headers, WebRTC STUN candidates, speech synthesis voices, and timezone.' },
+          { title: 'Layer Synthesis', body: 'Correlate physical network transport reality against client-reported execution environment.' },
+          { title: 'Inconsistency Scoring', body: 'Detect mathematical & protocol contradictions that no VPN tunnel can conceal at both layers simultaneously.' },
         ]}
       />
 
@@ -123,13 +123,13 @@ export default function App() {
           <div className="cols" style={{ gridTemplateColumns: '1.1fr 0.9fr' }}>
             <Reveal>
               <div className="mat" style={{ ...cardStyle, minHeight: 330 }}>
-                <div className="kicker" style={{ marginBottom: 18 }}>Server-side capture</div>
+                <div className="kicker" style={{ marginBottom: 18 }}>Server-side zero-JS capture</div>
                 {[
                   ['Public IP', '152.59.185.242', '#30c9f4'],
-                  ['Location', 'Fatehpur, India', '#d8e2ef'],
-                  ['ISP / org', 'Reliance Jio Infocomm', '#d8e2ef'],
+                  ['Datacenter ASN', 'M247 / Datacamp (Flagged)', '#ff9c66'],
+                  ['TCP MTU / MSS', '1420 bytes (Tunnel clamped)', '#ff9c66'],
                   ['IP timezone', 'Asia/Kolkata', '#30c9f4'],
-                  ['Proxy headers', 'XFF · X-Real-IP · Via', '#ff9c66'],
+                  ['Proxy headers', 'XFF · X-Real-IP · Via', '#d8e2ef'],
                 ].map(([label, value, color]) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 20, padding: '14px 0', borderTop: '1px solid var(--hair-2)', fontSize: 14 }}>
                     <span style={{ color: 'var(--fg-faint)' }}>{label}</span>
@@ -140,9 +140,9 @@ export default function App() {
             </Reveal>
             <Reveal delay={0.12}>
               <div className="mat" style={{ ...cardStyle, minHeight: 330, display: 'flex', flexDirection: 'column' }}>
-                <div className="kicker" style={{ marginBottom: 18 }}>Client hints</div>
+                <div className="kicker" style={{ marginBottom: 18 }}>Client hints &amp; TLS</div>
                 <p className="lead" style={{ fontSize: 'clamp(20px, 2.2vw, 28px)', color: 'var(--fg)', maxWidth: 18 + 'ch' }}>
-                  Headers can reveal the browser beneath the disguise.
+                  Headers &amp; JA4 signatures reveal the client beneath the disguise.
                 </p>
                 <div style={{ marginTop: 'auto', padding: 16, borderRadius: 12, background: '#030712', color: '#62e6b7', fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.65, border: '1px solid var(--hair-2)' }}>
                   "Not A Brand";v="99"<br />
@@ -207,7 +207,7 @@ export default function App() {
                 <div className="kicker" style={{ marginBottom: 10 }}>Live prototype readout</div>
                 <h2 className="headline" style={{ fontSize: 'clamp(30px, 4vw, 52px)' }}>One session. <span className="accent-text">Many clues.</span></h2>
               </div>
-              <div className="chip" style={{ color: '#ff7777', borderColor: '#ff777755', background: '#ff4d4d14' }}>2 anomalies</div>
+              <div className="chip" style={{ color: '#ff7777', borderColor: '#ff777755', background: '#ff4d4d14' }}>3 inconsistencies</div>
             </div>
           </Reveal>
           <Reveal delay={0.1}>
@@ -215,17 +215,18 @@ export default function App() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, padding: 'clamp(16px, 2.4vw, 30px)', background: '#050b1d' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div style={{ ...cardStyle, padding: 18, background: '#230715', borderColor: '#7e1d3f' }}>
-                    <div style={{ color: '#ff6b6b', fontWeight: 700, marginBottom: 12 }}>△ Anomalies Detected</div>
-                    <div style={{ color: '#ffd3d3', fontSize: 12, lineHeight: 1.5, padding: 10, background: '#3b0d1b', borderRadius: 8 }}>Timezone Mismatch: IP location Asia/Kolkata does not match browser timezone Asia/Calcutta.</div>
-                    <div style={{ color: '#ffd3d3', fontSize: 12, lineHeight: 1.5, padding: 10, marginTop: 8, background: '#3b0d1b', borderRadius: 8 }}>WebRTC IP Leak: detected a leaked address that may reveal the true network identity.</div>
+                    <div style={{ color: '#ff6b6b', fontWeight: 700, marginBottom: 12 }}>△ Inconsistency Engine Readout</div>
+                    <div style={{ color: '#ffd3d3', fontSize: 12, lineHeight: 1.5, padding: 10, background: '#3b0d1b', borderRadius: 8 }}>Datacenter ASN: IP belongs to M247 cloud hosting rather than a residential ISP.</div>
+                    <div style={{ color: '#ffd3d3', fontSize: 12, lineHeight: 1.5, padding: 10, marginTop: 8, background: '#3b0d1b', borderRadius: 8 }}>Timezone Mismatch: IP location UTC+1 (Berlin) vs browser system clock UTC-5 (New_York).</div>
+                    <div style={{ color: '#ffd3d3', fontSize: 12, lineHeight: 1.5, padding: 10, marginTop: 8, background: '#3b0d1b', borderRadius: 8 }}>WebRTC STUN Discrepancy: Server-reflexive address bypassed tunnel to expose home ISP.</div>
                   </div>
-                  <div style={{ ...cardStyle, padding: 18 }}><div style={{ color: '#e7f3ff', fontWeight: 700, marginBottom: 14 }}>◉ Geolocation &amp; Network</div>{[['Public IP', '152.59.185.242'], ['Location', 'Fatehpur, India'], ['IP Timezone', 'Asia/Kolkata'], ['Browser Timezone', 'Asia/Calcutta']].map(([label, value]) => <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderTop: '1px solid #24304a', color: '#8b9ab5', fontSize: 12 }}><span>{label}</span><span style={{ color: label.includes('Timezone') || label === 'Public IP' ? '#30c9f4' : '#d8e2ef', fontFamily: 'var(--font-mono)' }}>{value}</span></div>)}</div>
-                  <div style={{ ...cardStyle, padding: 18 }}><div style={{ color: '#e7f3ff', fontWeight: 700, marginBottom: 14 }}>▣ Server-Side Headers</div><div style={{ color: '#8b9ab5', fontSize: 12, lineHeight: 1.8 }}>Server-Seen IP <span style={{ float: 'right', color: '#d8e2ef' }}>::1</span><br />X-Forwarded-For <span style={{ float: 'right', color: '#d8e2ef' }}>::1</span><br />X-Real-IP <span style={{ float: 'right', color: '#d8e2ef' }}>None</span></div></div>
+                  <div style={{ ...cardStyle, padding: 18 }}><div style={{ color: '#e7f3ff', fontWeight: 700, marginBottom: 14 }}>◉ Geolocation &amp; Network</div>{[['Public IP', '152.59.185.242'], ['ASN / Org', 'M247 Ltd (Datacenter)'], ['IP Timezone', 'Europe/Berlin (UTC+1)'], ['Browser Timezone', 'America/New_York (UTC-5)']].map(([label, value]) => <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderTop: '1px solid #24304a', color: '#8b9ab5', fontSize: 12 }}><span>{label}</span><span style={{ color: label.includes('Timezone') || label.includes('ASN') ? '#30c9f4' : '#d8e2ef', fontFamily: 'var(--font-mono)' }}>{value}</span></div>)}</div>
+                  <div style={{ ...cardStyle, padding: 18 }}><div style={{ color: '#e7f3ff', fontWeight: 700, marginBottom: 14 }}>▣ Server-Side Transport</div><div style={{ color: '#8b9ab5', fontSize: 12, lineHeight: 1.8 }}>TCP MTU / MSS <span style={{ float: 'right', color: '#ff9c66', fontFamily: 'var(--font-mono)' }}>1420 (Clamped)</span><br />p0f OS Stack <span style={{ float: 'right', color: '#30c9f4' }}>Linux 5.x / 6.x</span><br />X-Forwarded-For <span style={{ float: 'right', color: '#d8e2ef' }}>152.59.185.242</span></div></div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div style={{ ...cardStyle, padding: 18 }}><div style={{ color: '#e7f3ff', fontWeight: 700, marginBottom: 14 }}>◉ Browser Fingerprint Engine</div><div style={{ color: '#8b9ab5', fontSize: 12, lineHeight: 2.1 }}>Canvas Hash <span style={{ float: 'right', color: '#30c9f4', fontFamily: 'var(--font-mono)' }}>-2d9b4bef</span><br />WebGL Vendor <span style={{ float: 'right', color: '#d8e2ef' }}>Google Inc. (Apple)</span><br />WebGL Renderer <span style={{ float: 'right', color: '#d8e2ef', maxWidth: '58%', textAlign: 'right' }}>Apple M2 · Metal Renderer</span></div></div>
-                  <div style={{ ...cardStyle, padding: 18 }}><div style={{ color: '#e7f3ff', fontWeight: 700, marginBottom: 14 }}>▣ Hardware Leaks</div><div style={{ color: '#8b9ab5', fontSize: 12, lineHeight: 2.1 }}>Platform <span style={{ float: 'right', color: '#d8e2ef' }}>MacIntel</span><br />CPU Cores <span style={{ float: 'right', color: '#d8e2ef' }}>6</span><br />Device RAM <span style={{ float: 'right', color: '#d8e2ef' }}>8 GB</span><br />Screen <span style={{ float: 'right', color: '#d8e2ef' }}>1920×1080</span></div></div>
-                  <div style={{ ...cardStyle, padding: 18 }}><div style={{ color: '#e7f3ff', fontWeight: 700, marginBottom: 14 }}>T Installed Fonts (Sample)</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{['Arial', 'Helvetica', 'Times New Roman', 'Courier New', 'Verdana', 'Georgia', 'Palatino', 'Impact', 'Monaco'].map((font) => <span key={font} style={{ padding: '5px 7px', borderRadius: 5, background: '#1a2840', color: '#b7c7db', fontSize: 10 }}>{font}</span>)}</div></div>
+                  <div style={{ ...cardStyle, padding: 18 }}><div style={{ color: '#e7f3ff', fontWeight: 700, marginBottom: 14 }}>▣ OS &amp; Environment Signals</div><div style={{ color: '#8b9ab5', fontSize: 12, lineHeight: 2.1 }}>Declared OS <span style={{ float: 'right', color: '#d8e2ef' }}>macOS (MacIntel)</span><br />Speech Synthesis <span style={{ float: 'right', color: '#62e6b7' }}>Apple voices (Consistent)</span><br />CPU / RAM <span style={{ float: 'right', color: '#d8e2ef' }}>8 cores · 16 GB</span><br />Screen <span style={{ float: 'right', color: '#d8e2ef' }}>1920×1080</span></div></div>
+                  <div style={{ ...cardStyle, padding: 18 }}><div style={{ color: '#e7f3ff', fontWeight: 700, marginBottom: 14 }}>T Installed Fonts &amp; Voices</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{['Menlo', 'Monaco', 'Apple Color Emoji', 'Arial', 'Helvetica', 'Times New Roman', 'Samantha (en-US)', 'Alex (en-US)'].map((font) => <span key={font} style={{ padding: '5px 7px', borderRadius: 5, background: '#1a2840', color: '#b7c7db', fontSize: 10 }}>{font}</span>)}</div></div>
                 </div>
               </div>
             </BrowserFrame>
@@ -244,12 +245,12 @@ export default function App() {
           <div className="cols" style={{ gridTemplateColumns: '1.15fr 0.85fr', alignItems: 'stretch' }}>
             <Reveal>
               <div className="mat" style={{ ...cardStyle, height: '100%' }}>
-                <div className="kicker" style={{ marginBottom: 18 }}>High-signal fingerprints</div>
+                <div className="kicker" style={{ marginBottom: 18 }}>High-signal telemetry</div>
                 {[
-                  ['Canvas hash', 'Rendering quirks from OS + GPU'],
-                  ['WebGL renderer', 'Hardware identity beneath software masks'],
-                  ['Font inventory', 'Installed system fonts via text metrics'],
-                  ['Device profile', 'CPU · RAM · screen · color depth'],
+                  ['TCP MTU & ASN', 'Zero-JS transport overhead & datacenter classification'],
+                  ['Canvas & WebGL', 'Hardware identity beneath software masks'],
+                  ['Speech & Font inventory', 'System voices and metrics validating declared OS'],
+                  ['Timezone & WebRTC', 'Physical clock and STUN interface leak detection'],
                 ].map(([label, body], index) => (
                   <div key={label} style={{ display: 'grid', gridTemplateColumns: '28px 1fr', gap: 14, padding: '15px 0', borderTop: '1px solid var(--hair-2)' }}>
                     <span style={{ color: '#30c9f4', fontFamily: 'var(--font-mono)', fontSize: 13 }}>0{index + 1}</span>
@@ -266,7 +267,7 @@ export default function App() {
                 </div>
                 <div>
                   <div className="kicker" style={{ marginBottom: 12 }}>Signal density</div>
-                  <div style={{ height: 112 }}><BarChart data={[{ label: 'IP', value: 42 }, { label: 'HDR', value: 58 }, { label: 'GPU', value: 82 }, { label: 'Font', value: 68 }, { label: 'RTC', value: 91 }]} height={112} /></div>
+                  <div style={{ height: 112 }}><BarChart data={[{ label: 'ASN', value: 94 }, { label: 'MTU', value: 88 }, { label: 'GPU', value: 82 }, { label: 'Voice', value: 76 }, { label: 'RTC', value: 91 }]} height={112} /></div>
                 </div>
               </div>
             </Reveal>
@@ -277,12 +278,12 @@ export default function App() {
       <StatGrid
         nav="Anomaly detection"
         notes="Timezone mismatch is the primary heuristic. WebRTC is the highest-impact leak because it can expose the true network identity."
-        kicker="03 · Anomaly detection"
+        kicker="03 · Inconsistency engine"
         title="The strongest signal is a contradiction."
         stats={[
-          { value: '01', label: 'Timezone mismatch', caption: 'IP location and browser timezone disagree.' },
-          { value: '02', label: 'WebRTC leak', caption: 'Internal or true public IP escapes the tunnel.' },
-          { value: '03', label: 'Header mismatch', caption: 'Proxy headers and client hints tell different stories.' },
+          { value: '01', label: 'Single-session contradiction', caption: 'Internal layer conflicts prove VPN use without relying on fragile cross-user device matching.' },
+          { value: '02', label: 'Datacenter ASN & MTU', caption: 'Cloud exit IP ranges and MTU packet clamping (<1440) expose tunnel protocol wrappers.' },
+          { value: '03', label: 'WebRTC & Speech leaks', caption: 'STUN bypasses and OS speech voice arrays unmask spoofed headers and split tunnels.' },
         ]}
       />
 
@@ -291,18 +292,18 @@ export default function App() {
           <Reveal>
             <div className="kicker" style={{ marginBottom: 12, textAlign: 'center' }}>The primary heuristic</div>
             <h2 className="headline" style={{ marginBottom: 'clamp(22px, 4vh, 38px)', textAlign: 'center', marginInline: 'auto' }}>
-              Location is not a field. <span className="accent-text">It is a consistency check.</span>
+              VPN detection is an <span className="accent-text">inconsistency proof.</span>
             </h2>
           </Reveal>
           <div className="mat" style={{ ...cardStyle, maxWidth: 950, margin: '0 auto', padding: 'clamp(24px, 3.2vw, 42px)' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 20 }}>
-              <div style={{ textAlign: 'center' }}><div className="kicker" style={{ marginBottom: 10 }}>IP-derived</div><div style={{ fontSize: 'clamp(20px, 2.8vw, 34px)', fontWeight: 600 }}>Asia / Kolkata</div><div style={{ color: 'var(--fg-muted)', marginTop: 6 }}>Public address geolocation</div></div>
+              <div style={{ textAlign: 'center' }}><div className="kicker" style={{ marginBottom: 10 }}>Transport Reality</div><div style={{ fontSize: 'clamp(18px, 2.4vw, 28px)', fontWeight: 600 }}>Datacenter ASN · MTU 1420</div><div style={{ color: 'var(--fg-muted)', marginTop: 6 }}>Server-side packet layer</div></div>
               <div style={{ display: 'grid', placeItems: 'center', width: 50, height: 50, borderRadius: '50%', color: '#ff6b6b', border: '1px solid #ff6b6b66', background: '#ff6b6b14', fontSize: 25 }}>≠</div>
-              <div style={{ textAlign: 'center' }}><div className="kicker" style={{ marginBottom: 10 }}>Browser-derived</div><div style={{ fontSize: 'clamp(20px, 2.8vw, 34px)', fontWeight: 600 }}>Asia / Calcutta</div><div style={{ color: 'var(--fg-muted)', marginTop: 6 }}>System timezone</div></div>
+              <div style={{ textAlign: 'center' }}><div className="kicker" style={{ marginBottom: 10 }}>Device Environment</div><div style={{ fontSize: 'clamp(18px, 2.4vw, 28px)', fontWeight: 600 }}>System Clock · Apple Voices</div><div style={{ color: 'var(--fg-muted)', marginTop: 6 }}>Client-side runtime</div></div>
             </div>
             <div style={{ marginTop: 30, paddingTop: 22, borderTop: '1px solid var(--hair-2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-              <span style={{ color: 'var(--fg-muted)' }}>Mismatch raises suspicion — it does not prove intent.</span>
-              <span className="chip" style={{ color: '#ff7777', borderColor: '#ff777755', background: '#ff4d4d14' }}>flag for review</span>
+              <span style={{ color: 'var(--fg-muted)' }}>Avoids commodity device false positives: Evaluates contradictory evidence within the active connection.</span>
+              <span className="chip" style={{ color: '#ff7777', borderColor: '#ff777755', background: '#ff4d4d14' }}>zero-touch inconsistency</span>
             </div>
           </div>
         </div>
