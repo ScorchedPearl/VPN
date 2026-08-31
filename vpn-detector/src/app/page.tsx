@@ -427,8 +427,9 @@ export default function Home() {
               <div className="mb-4 flex items-center gap-2 text-violet-300"><Monitor className="h-5 w-5" /><h3 className="font-bold text-white">Browser/profile components</h3></div>
               <DataLine label="Browser" value={`${fingerprint.browserFamily} ${fingerprint.browserMajor}`} />
               <DataLine label="Canvas repeatable" value={fingerprint.canvas.repeatable ? "Yes, within this scan" : "No / protected"} />
-              <DataLine label="Visible fonts" value={String(fingerprint.fonts.length)} />
-              <DataLine label="Capabilities" value={String(fingerprint.capabilities.length)} />
+              <DataLine label="Visible fonts" value={`${fingerprint.fonts.length} detected`} />
+              <DataLine label="Speech voices" value={fingerprint.speechVoices ? `${fingerprint.speechVoices.count} voices (${fingerprint.speechVoices.osVoiceHint})` : "Unavailable"} />
+              <DataLine label="OS consistency" value={fingerprint.environmentChecks?.osMatchStatus || "consistent"} />
               <DataLine label="Screen" value={`${fingerprint.screen.width}×${fingerprint.screen.height} @ ${fingerprint.screen.pixelRatioBucket}x`} />
             </Panel>
             <Panel className="p-5">
