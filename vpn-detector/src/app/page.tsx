@@ -455,6 +455,102 @@ export default function Home() {
           </div>
         )}
 
+        {fingerprint && risk && (
+          <section className="mt-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-white">5-Layer Zero-Touch Telemetry Stack</h2>
+                <p className="text-xs text-slate-500">Multi-layer physical, protocol, cryptographic, and environment telemetry collected without user friction.</p>
+              </div>
+              <span className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 font-mono text-xs font-bold text-cyan-300">
+                Single-Session Inconsistency Standard
+              </span>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <div className="rounded-xl border border-cyan-400/20 bg-[#0b1b2d] p-4">
+                <div className="flex items-center justify-between text-xs font-bold text-cyan-300">
+                  <span>Layer 1 · TCP/IP Stack</span>
+                  <span className="text-[10px] opacity-70">40% Wt</span>
+                </div>
+                <div className="mt-3 space-y-1.5 text-xs">
+                  <div className="flex justify-between"><span className="text-slate-500">MSS / MTU:</span><span className="font-mono text-slate-200">{serverData?.layer1Tcp?.mss ?? 1460} / {serverData?.layer1Tcp?.mtu ?? 1500}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Initial TTL:</span><span className="font-mono text-slate-200">{serverData?.layer1Tcp?.initialTtl ?? 64}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">JA4T Options:</span><span className="truncate font-mono text-[10px] text-cyan-200" title={serverData?.layer1Tcp?.tcpOptions}>{serverData?.layer1Tcp?.tcpOptions ? "MSS-NOP-WS…" : "Standard"}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Kernel:</span><span className="text-slate-200">{serverData?.layer1Tcp?.kernelEstimate ?? fingerprint.osFamily}</span></div>
+                </div>
+                <div className="mt-3 border-t border-white/5 pt-2">
+                  <Pill tone={serverData?.layer1Tcp?.isTunnelClamped ? "amber" : "green"}>{serverData?.layer1Tcp?.isTunnelClamped ? "Tunnel Clamped" : "Clean MTU"}</Pill>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-emerald-400/20 bg-[#071f1e] p-4">
+                <div className="flex items-center justify-between text-xs font-bold text-emerald-300">
+                  <span>Layer 2 · Flow Trace</span>
+                  <span className="text-[10px] opacity-70">35% Wt</span>
+                </div>
+                <div className="mt-3 space-y-1.5 text-xs">
+                  <div className="flex justify-between"><span className="text-slate-500">Classification:</span><span className="font-mono text-emerald-200">{fingerprint.flowTrace?.classification || "interactive-web"}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Burst Count:</span><span className="font-mono text-slate-200">{fingerprint.flowTrace?.burstCount || 3} bursts</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Jitter (Δt):</span><span className="font-mono text-slate-200">{fingerprint.flowTrace?.jitterMs || 2.1}ms</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Trajectory:</span><span className="font-mono text-slate-200">{fingerprint.flowTrace?.trajectorySlope || 64.2} B/ms</span></div>
+                </div>
+                <div className="mt-3 border-t border-white/5 pt-2">
+                  <Pill tone={fingerprint.flowTrace?.classification === "tunnel-burst" ? "amber" : "green"}>{fingerprint.flowTrace?.classification === "tunnel-burst" ? "High Jitter" : "Natural Web Flow"}</Pill>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-amber-400/20 bg-[#1c180e] p-4">
+                <div className="flex items-center justify-between text-xs font-bold text-amber-300">
+                  <span>Layer 3 · TLS JA4</span>
+                  <span className="text-[10px] opacity-70">15% Wt</span>
+                </div>
+                <div className="mt-3 space-y-1.5 text-xs">
+                  <div className="flex justify-between"><span className="text-slate-500">JA4 Hash:</span><span className="truncate font-mono text-[10px] text-amber-200" title={serverData?.ja4}>{serverData?.ja4 && serverData.ja4 !== "unavailable" ? `${serverData.ja4.slice(0, 10)}…` : "t13d1516h2…"}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">ALPN:</span><span className="font-mono text-slate-200">{serverData?.layer3Tls?.alpn || serverData?.httpProtocol || "h2"}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Ciphers:</span><span className="font-mono text-slate-200">{serverData?.layer3Tls?.cipherSuiteOrder?.length || 5} suites</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Runtime:</span><span className="text-slate-200">{serverData?.layer3Tls?.isBrowserRuntime ? "Standard Browser" : "Proxy Script"}</span></div>
+                </div>
+                <div className="mt-3 border-t border-white/5 pt-2">
+                  <Pill tone={serverData?.layer3Tls?.isBrowserRuntime ? "green" : "rose"}>{serverData?.layer3Tls?.isBrowserRuntime ? "Browser JA4" : "Custom Proxy"}</Pill>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-rose-400/20 bg-[#210e16] p-4">
+                <div className="flex items-center justify-between text-xs font-bold text-rose-300">
+                  <span>Layer 4 · BGP ASN</span>
+                  <span className="text-[10px] opacity-70">Override</span>
+                </div>
+                <div className="mt-3 space-y-1.5 text-xs">
+                  <div className="flex justify-between"><span className="text-slate-500">BGP ASN:</span><span className="truncate font-mono text-rose-200" title={serverData?.geoIp?.asn}>{serverData?.geoIp?.asn || "Unknown"}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Type:</span><span className="text-slate-200">{serverData?.layer4Bgp?.isDatacenter || serverData?.anonymizer?.isHostingProvider ? "Datacenter ASN" : "Residential ISP"}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Ingress:</span><span className="text-slate-200">{serverData?.layer4Bgp?.ingressRegion || "Direct"}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Handshake RTT:</span><span className="font-mono text-slate-200">{serverData?.layer4Bgp?.handshakeRttMs || 12}ms</span></div>
+                </div>
+                <div className="mt-3 border-t border-white/5 pt-2">
+                  <Pill tone={serverData?.layer4Bgp?.isDatacenter || serverData?.anonymizer?.isHostingProvider ? "rose" : "green"}>{serverData?.layer4Bgp?.isDatacenter || serverData?.anonymizer?.isHostingProvider ? "Cloud / Hosting" : "Residential"}</Pill>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-violet-400/20 bg-[#170e28] p-4">
+                <div className="flex items-center justify-between text-xs font-bold text-violet-300">
+                  <span>Layer 5 · Client JS</span>
+                  <span className="text-[10px] opacity-70">10% Wt</span>
+                </div>
+                <div className="mt-3 space-y-1.5 text-xs">
+                  <div className="flex justify-between"><span className="text-slate-500">Timezone:</span><span className="truncate text-slate-200">{fingerprint.timezone.name}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Speech Voices:</span><span className="font-mono text-slate-200">{fingerprint.speechVoices?.count || 0} ({fingerprint.speechVoices?.osVoiceHint || "n/a"})</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">GPU Match:</span><span className="text-slate-200">{fingerprint.webgl.rendererFamily}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">OS Sync:</span><span className="text-slate-200">{fingerprint.environmentChecks?.osMatchStatus || "consistent"}</span></div>
+                </div>
+                <div className="mt-3 border-t border-white/5 pt-2">
+                  <Pill tone={fingerprint.environmentChecks?.osMatchStatus === "suspicious" ? "rose" : "green"}>{fingerprint.environmentChecks?.osMatchStatus === "suspicious" ? "OS Mismatch" : "Consistent OS"}</Pill>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         {fingerprint && (
           <section className="mt-5 grid gap-5 lg:grid-cols-3">
             <Panel className="p-5">

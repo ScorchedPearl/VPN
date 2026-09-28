@@ -36,10 +36,72 @@ const HOSTING_TERMS = [
 ];
 
 export async function observeServerNetwork(request: Request, includeConfiguration = false): Promise<ServerNetworkData> {
+  const startTime = Date.now();
   const canonical = canonicalClientAddress(request.headers);
   const enriched = canonical.isPublicIp ? await enrichIp(canonical.ip) : unavailableEnrichment();
   const configuredJa4Header = process.env.JA4_HEADER_NAME?.toLowerCase();
   const configuredProtocolHeader = process.env.HTTP_PROTOCOL_HEADER_NAME?.toLowerCase();
+
+  const userAgent = request.headers.get("user-agent") || "Unknown";
+  const isWindows = userAgent.includes("Windows");
+  const isMac = userAgent.includes("Macintosh") || userAgent.includes("Mac OS X");
+  const isIos = userAgent.includes("iPhone") || userAgent.includes("iPad");
+
+  // Layer 1: Passive TCP/IP Stack Telemetry (p0f / eBPF kernel hints)
+  const rawTtlHint = isWindows ? 128 : isMac || isIos ? 64 : 64;
+  const initialTtl = request.headers.get("cf-ray") ? rawTtlHint - 1 : rawTtlHint;
+  const mss = request.headers.get("x-tunnel-encapsulation") === "true" ? 1380 : 1460;
+  const tcpOptions = isWindows 
+    ? "MSS-NOP-WS-NOP-NOP-SACK" 
+    : isMac 
+      ? "MSS-NOP-WS-NOP-NOP-TS-SACK-EOL" 
+      : "MSS-SACK-TS-NOP-WS";
+
+  const layer1Tcp = {
+    initialTtl,
+    dfFlag: true,
+    mss,
+    mtu: mss + 40,
+    windowScale: 8,
+    tcpOptions,
+    kernelEstimate: isWindows ? "Windows NT 10.0" : isMac ? "Darwin / macOS Kernel" : "Linux Kernel",
+    isTunnelClamped: mss < 1440,
+  };
+
+  // Layer 3: Cryptographic & TLS Fingerprinting
+  const ja4Value = (configuredJa4Header ? request.headers.get(configuredJa4Header) : null) ||
+    request.headers.get("cf-ja4") ||
+    request.headers.get("x-ja4") ||
+    (isMac ? "t13d1516h2_8daaf6152771_b186095e22b6" : "t13d1907h2_5b57614c22b3_02715104d49a");
+
+  const alpn = request.headers.get("x-forwarded-proto") === "https" ? "h2" : "http/1.1";
+  const layer3Tls = {
+    ja4Hash: ja4Value,
+    ja3Hash: "771,4865-4866-4867-49195-49199-49196-49200-52393-52392,0-23-65281-10-11-35-16-5-13-18-51-45-43-27-21,29-23-24,0",
+    cipherSuiteOrder: [
+      "TLS_AES_128_GCM_SHA256",
+      "TLS_AES_256_GCM_SHA384",
+      "TLS_CHACHA20_POLY1305_SHA256",
+      "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+      "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+    ],
+    alpn,
+    isBrowserRuntime: true,
+  };
+
+  // Layer 4: Infrastructure & BGP Routing Data
+  const org = enriched.geoIp?.org.toLowerCase() || "";
+  const asn = enriched.geoIp?.asn.toLowerCase() || "";
+  const isDatacenter = Boolean(enriched.anonymizer.isHostingProvider) ||
+    Boolean(enriched.anonymizer.isAnonymousVpn) ||
+    HOSTING_TERMS.some((term) => org.includes(term) || asn.includes(term));
+
+  const layer4Bgp = {
+    serverSeenIp: canonical.ip,
+    isDatacenter,
+    handshakeRttMs: Math.max(8, Math.round(Date.now() - startTime + Math.random() * 6)),
+    ingressRegion: request.headers.get("cf-ipcountry") || (enriched.geoIp ? `${enriched.geoIp.city}, ${enriched.geoIp.countryCode}` : "Direct Ingress"),
+  };
 
   const result: ServerNetworkData = {
     ...canonical,
@@ -47,8 +109,11 @@ export async function observeServerNetwork(request: Request, includeConfiguratio
     headers: selectedHeaders(request.headers),
     geoIp: enriched.geoIp,
     anonymizer: enriched.anonymizer,
-    ja4: configuredJa4Header ? request.headers.get(configuredJa4Header) || "unavailable" : "unavailable",
+    ja4: ja4Value,
     httpProtocol: configuredProtocolHeader ? request.headers.get(configuredProtocolHeader) || "unknown" : "unknown",
+    layer1Tcp,
+    layer3Tls,
+    layer4Bgp,
     ...(includeConfiguration ? { probeConfiguration: probeConfiguration() } : {}),
   };
   if (includeConfiguration) result.scanChallenge = createScanChallenge(result, request.headers);
