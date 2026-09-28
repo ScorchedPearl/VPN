@@ -1,0 +1,9 @@
+# Dependencies and generated Next.js output across projects
+**/node_modules/
+**/.next/
+**/out/
+**/build/
+
+# Local environment and OS files
+**/.env*
+**/.DS_Store

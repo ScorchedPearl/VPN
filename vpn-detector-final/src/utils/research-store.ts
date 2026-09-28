@@ -23,7 +23,9 @@ function databasePool(): Pool {
     ssl: { rejectUnauthorized: false },
     max: 5,
     idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 10_000,
+    // VPN DNS/TLS handshakes to a managed pooler can exceed the usual local
+    // direct-Postgres timeout. Bound the wait, but allow a cold connection.
+    connectionTimeoutMillis: 30_000,
   });
   return shared.__vpnResearchPool;
 }

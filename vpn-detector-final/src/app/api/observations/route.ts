@@ -166,12 +166,14 @@ function logDatabaseError(operation: string, error: unknown) {
 
 function publicDatabaseError(error: unknown): string {
   const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unknown";
+  const connectionMode = process.env.DATABASE_URL_POOLER ? "pooler" : "direct PostgreSQL";
   if (["ENOTFOUND", "ETIMEDOUT", "ECONNREFUSED", "ECONNRESET"].includes(code)) {
-    return "Research database connection failed. If this network restricts direct PostgreSQL traffic, configure DATABASE_URL_POOLER with the Supabase pooler connection string.";
+    return `Research ${connectionMode} connection failed. Configure DATABASE_URL_POOLER with the Supabase pooler connection string if this network restricts direct PostgreSQL traffic.`;
   }
   if (code === "28P01") return "Research database authentication failed. Check the server-side PostgreSQL connection string.";
   if (code === "42P01") return "Research database schema is unavailable. Reload once to initialize the NDSS observation table.";
-  return "Research database request failed. Check the server logs for the diagnostic code.";
+  const message = error instanceof Error ? error.message.replace(/[\r\n]/g, " ").slice(0, 180) : "unknown error";
+  return `Research database request failed (${code}): ${message}`;
 }
 
 function allowObservation(network: { trusted: boolean; isPublicIp: boolean; ip: string }): boolean {
