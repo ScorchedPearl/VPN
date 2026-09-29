@@ -3,6 +3,13 @@ import Slide from '@/deck/Slide';
 import { presentationSlides } from '@/data/presentation-store';
 import Image from 'next/image';
 import { ArrowRight, Database, FingerprintPattern, LayoutDashboard, Monitor, Server, ShieldCheck } from 'lucide-react';
+import {
+  SystemFlawsVisual,
+  FutureImprovementsVisual,
+  ParameterImportanceVisual,
+  RedundancySelectionVisual,
+  ConclusionVisual,
+} from '@/components/VishwasSlides';
 import './midsem.css';
 
 function ImageSpace({ index }: { index: number }) {
@@ -302,6 +309,16 @@ export default function Home() {
                 <ProposedFrameworkVisual />
               ) : item.presenter === 'Saumya' && item.title === 'System Architecture' ? (
                 <SystemArchitectureVisual />
+              ) : item.presenter === 'Vishwas' && item.title === 'Current System Flaws and Limitations' ? (
+                <SystemFlawsVisual />
+              ) : item.presenter === 'Vishwas' && item.title === 'Future Improvements' ? (
+                <FutureImprovementsVisual />
+              ) : item.presenter === 'Vishwas' && item.title === 'Statistical Parameter-Importance Analysis' ? (
+                <ParameterImportanceVisual />
+              ) : item.presenter === 'Vishwas' && item.title === 'Redundancy Analysis and Feature Selection' ? (
+                <RedundancySelectionVisual />
+              ) : item.presenter === 'Vishwas' && item.title === 'Conclusion' ? (
+                <ConclusionVisual />
               ) : (
                 <div className="ms-image-grid">
                   {Array.from({ length: item.imageSlots }, (_, slotIndex) => (
