@@ -120,12 +120,28 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 html[data-theme='light'] .slide::before {
-  inset: -4%;
+  inset: 0;
+  background: #fff;
+  animation: none;
+}
+
+html[data-theme='light'] .slide {
+  box-shadow: none;
+}
+
+html[data-theme='light'] .slide::after {
+  inset: 18px;
+  opacity: 1;
+  mix-blend-mode: normal;
   background:
-    linear-gradient(90deg, rgba(244, 248, 252, 0.5), rgba(244, 248, 252, 0.2) 56%, rgba(244, 248, 252, 0.08)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(244, 248, 252, 0.34)),
-    url('/images/light-network-background.png') center / cover no-repeat;
-  animation-duration: 38s;
+    linear-gradient(#111, #111) 16px 0 / calc(100% - 32px) 3px no-repeat,
+    linear-gradient(#111, #111) 16px 100% / calc(100% - 32px) 3px no-repeat,
+    linear-gradient(#111, #111) 0 16px / 3px calc(100% - 32px) no-repeat,
+    linear-gradient(#111, #111) 100% 16px / 3px calc(100% - 32px) no-repeat,
+    radial-gradient(circle at 0 0, #111 0 5px, transparent 5.5px),
+    radial-gradient(circle at 100% 0, #111 0 5px, transparent 5.5px),
+    radial-gradient(circle at 0 100%, #111 0 5px, transparent 5.5px),
+    radial-gradient(circle at 100% 100%, #111 0 5px, transparent 5.5px);
 }
 
 /* ── Fluid type atoms ───────────────────────────────────────────── */

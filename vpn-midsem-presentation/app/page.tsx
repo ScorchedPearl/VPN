@@ -7,16 +7,12 @@ import { presentationSlides } from '@/data/presentation-store';
 import Image from 'next/image';
 import {
   AlertTriangle,
-  ArrowRight,
   Calculator,
   Cpu,
   Database,
   FingerprintPattern,
-  LayoutDashboard,
   Monitor,
   Network,
-  Radio,
-  Server,
   ShieldCheck,
 } from 'lucide-react';
 import {
@@ -61,7 +57,9 @@ function ProblemStatementVisual() {
 
       <div className="ms-problem-bottom">
         <div className="ms-problem-example">
-          <div className="ms-device" aria-hidden="true"><span>▣</span><span>Same device</span></div>
+          <div className="ms-device" aria-hidden="true">
+            <Image className="ms-device-chrome" src="/images/chrome-icon.png" width={52} height={52} alt="" />
+          </div>
           <div className="ms-browser-row">
             <span>Chrome</span><b>≈</b><span>Firefox</span>
           </div>
@@ -92,17 +90,17 @@ function ProposedFrameworkVisual() {
         <div className="ms-flow-top">
           <section className="ms-flow-step">
             <div className="ms-flow-number">01</div>
-            <div><h3>Collect signals</h3><p>Browser, hardware, display, WebRTC and consented server-network observations.</p></div>
+            <div><h3>Collect signals</h3><ul><li>Browser and device signals</li><li>Server-side network evidence</li></ul></div>
           </section>
           <div className="ms-flow-arrow" aria-hidden="true">→</div>
           <section className="ms-flow-step">
             <div className="ms-flow-number">02</div>
-            <div><h3>Generate profiles</h3><p>Standardize values into buckets; create fingerprints and NDSS task hashes.</p></div>
+            <div><h3>Generate profiles</h3><ul><li>Normalize stable values</li><li>Create fingerprint and task hashes</li></ul></div>
           </section>
           <div className="ms-flow-arrow" aria-hidden="true">→</div>
           <section className="ms-flow-step ms-flow-match">
             <div className="ms-flow-number">03</div>
-            <div><h3>Compare sessions</h3><p>Use browser traits for same-browser matches and stable device signals across browsers.</p></div>
+            <div><h3>Compare sessions</h3></div>
             <div className="ms-cross-browser">
               <b>Cross-browser fix</b>
               <span>For each browser pair, select an NDSS task mask trained to maximize <em>stability × uniqueness</em>.</span>
@@ -113,13 +111,12 @@ function ProposedFrameworkVisual() {
         <div className="ms-flow-bottom">
           <section className="ms-flow-step">
             <div className="ms-flow-number">04</div>
-            <div><h3>Analyze network</h3><p>Server IP, GeoIP/ASN, anonymizer class, path divergence and timezone consistency.</p></div>
+            <div><h3>Analyze network</h3><ul><li>IP, GeoIP and ASN</li><li>Path and timezone consistency</li></ul></div>
           </section>
           <div className="ms-flow-arrow" aria-hidden="true">→</div>
           <section className="ms-flow-step ms-flow-risk">
             <div className="ms-flow-number">05</div>
-            <div><h3>Assess risk</h3><p>Fuse history, device continuity and independent network evidence into a capped, explainable action.</p></div>
-            <div className="ms-risk-output"><span>LOW / ELEVATED / HIGH</span><b>allow · step-up · review</b></div>
+            <div><h3>Assess risk</h3><ul><li>Device continuity</li><li>Network evidence and history</li></ul></div>
           </section>
         </div>
       </div>
@@ -133,57 +130,21 @@ function ProposedFrameworkVisual() {
 }
 
 function SystemArchitectureVisual() {
-  const iconProps = { size: 24, strokeWidth: 1.6, 'aria-hidden': true };
   return (
-    <div className="ms-architecture" aria-label="High-level system architecture for VPN detection research">
+    <div className="ms-architecture ms-architecture-diagram" aria-label="High-level system architecture for VPN detection research">
       <div className="ms-architecture-intro">
         <span>High-level architecture</span>
         <p>Client collection and server-authoritative network evidence are combined into an <strong>explainable research decision</strong>.</p>
       </div>
-
-      <div className="ms-architecture-top">
-        <section className="ms-arch-node ms-arch-client">
-          <div className="ms-arch-icon"><Monitor {...iconProps} /></div>
-          <div><h3>Browser client</h3><p>Scanner UI, consent and controlled study inputs.</p></div>
-          <ul><li>device + browser context</li><li>optional location / path probes</li></ul>
-        </section>
-        <div className="ms-arch-arrow"><ArrowRight {...iconProps} /><span>local capture</span></div>
-        <section className="ms-arch-node ms-arch-fingerprint">
-          <div className="ms-arch-icon"><FingerprintPattern {...iconProps} /></div>
-          <div><h3>Fingerprint engine</h3><p>Runs in the browser before submission.</p></div>
-          <ul><li>normalized device profile</li><li>NDSS task hashes (opt-in)</li></ul>
-        </section>
-        <div className="ms-arch-arrow"><ArrowRight {...iconProps} /><span>signed scan</span></div>
-        <section className="ms-arch-node ms-arch-server">
-          <div className="ms-arch-icon"><Server {...iconProps} /></div>
-          <div><h3>Next.js API server</h3><p>Validates the submission and observes the canonical network path.</p></div>
-          <ul><li>IP / GeoIP / ASN enrichment</li><li>challenge, rate and integrity checks</li></ul>
-        </section>
-      </div>
-
-      <div className="ms-architecture-bridge"><span>↓</span><p>Validated observation + trusted network context</p></div>
-
-      <div className="ms-architecture-bottom">
-        <section className="ms-arch-node ms-arch-db">
-          <div className="ms-arch-icon"><Database {...iconProps} /></div>
-          <div><h3>Research store</h3><p>Supabase PostgreSQL keeps versioned observations, history and scores.</p></div>
-          <small>read history · write result</small>
-        </section>
-        <div className="ms-arch-arrow ms-arch-arrow-wide"><ArrowRight {...iconProps} /><span>prior captures</span></div>
-        <section className="ms-arch-node ms-arch-analysis">
-          <div className="ms-arch-icon"><ShieldCheck {...iconProps} /></div>
-          <div><h3>Matching &amp; risk analysis</h3><p>Compares sessions, trains a browser-pair NDSS mask, and scores independent evidence.</p></div>
-          <small>similarity · history · risk evidence</small>
-        </section>
-        <div className="ms-arch-arrow ms-arch-arrow-wide"><ArrowRight {...iconProps} /><span>response</span></div>
-        <section className="ms-arch-node ms-arch-dashboard">
-          <div className="ms-arch-icon"><LayoutDashboard {...iconProps} /></div>
-          <div><h3>Scanner &amp; dashboard</h3><p>Shows match confidence, network evidence, risk band and capture explorer.</p></div>
-          <small>explainable output</small>
-        </section>
-      </div>
-
-      <div className="ms-architecture-foot"><span>Data boundary</span><p>Raw browser values are reduced to research profiles and hashes; the system reports evidence, not proof of identity or VPN use.</p></div>
+      <figure className="ms-architecture-figure">
+        <Image
+          src="/images/system-architecture-flow-gold.png"
+          width={2056}
+          height={765}
+          priority
+          alt="Full system architecture showing browser client, fingerprint engine, API server, research store, matching and risk analysis, and dashboard"
+        />
+      </figure>
     </div>
   );
 }
@@ -406,7 +367,7 @@ function FeatureCollectionVisual() {
             </div>
             <div className="ms-panel-row">
               <dt>Media codecs</dt>
-              <dd style={{ fontSize: '9px' }}>aac, av1, flac, h264, hevc, opus, vp8, vp9</dd>
+              <dd style={{ fontSize: '11.5px' }}>aac, av1, flac, h264, hevc, opus, vp8, vp9</dd>
             </div>
             <div className="ms-panel-row">
               <dt>Audio research</dt>
@@ -440,7 +401,7 @@ function FeatureCollectionVisual() {
             </div>
             <div className="ms-panel-row">
               <dt>JA4 / HTTP</dt>
-              <dd style={{ fontSize: '9px' }}>t13d1516h2_8daaf6152771_b186095e22b6 · unknown</dd>
+              <dd style={{ fontSize: '11.5px' }}>t13d1516h2_8daaf6152771_b186095e22b6 · unknown</dd>
             </div>
             <div className="ms-panel-row">
               <dt>Browser timezone</dt>
@@ -468,27 +429,6 @@ function FeatureCollectionVisual() {
         </div>
       </section>
 
-      {/* Bottom Block Diagram: Standardization & Preprocessing (Clear & Precise) */}
-      <div className="ms-std-strip">
-        <div className="ms-std-box">
-          <span className="ms-std-box-title">01 · Coarse Bucketing</span>
-          <p>
-            Cores &amp; RAM mapped to <code>&lt;=8, &lt;=16</code> via <code>numberBucket()</code>; screen rounded via <code>roundTo(max(w,h), 100)</code>. Prevents minor OS updates from causing false identity resets.
-          </p>
-        </div>
-        <div className="ms-std-box">
-          <span className="ms-std-box-title">02 · Feature Normalization</span>
-          <p>
-            Font fallback delta <code>&gt; 0.01px</code> against monospace/sans/serif; media codecs and capabilities sorted alphabetically into deterministic sets for Jaccard similarity.
-          </p>
-        </div>
-        <div className="ms-std-box">
-          <span className="ms-std-box-title">03 · Server-Side Ingress</span>
-          <p>
-            TLS JA4 hash and canonical IP observed at reverse proxy. Client-side JS cannot tamper with, spoof, or overwrite authoritative transport evidence.
-          </p>
-        </div>
-      </div>
     </div>
   );
 }
@@ -496,18 +436,21 @@ function FeatureCollectionVisual() {
 function BrowserFingerprintGenerationVisual() {
   return (
     <div className="ms-generation-layout" aria-label="Browser fingerprint generation and versioned signatures">
-      <figure className="ms-photo-card">
-        <Image
-          src="/images/versioned-signatures.png"
-          width={968}
-          height={822}
-          alt="Versioned signatures: Browser signature and coarse device signature"
-          priority
-        />
-      </figure>
+      <section className="ms-signature-panel" aria-label="Versioned signatures">
+        <div className="ms-signature-heading"><Database size={25} /><span>Versioned signatures</span></div>
+        <div className="ms-signature-value">
+          <span>Browser signature</span>
+          <code>a7eea793f7fae953db15…</code>
+        </div>
+        <div className="ms-signature-value">
+          <span>Coarse device signature</span>
+          <code>66595026defb528b4a02…</code>
+        </div>
+        <p className="ms-signature-note"><strong>Exact IDs</strong> demonstrate canonical hashing. Cross-browser decisions use weighted components instead.</p>
+      </section>
 
       <div className="ms-generation-cards">
-        <div className="ms-briefing-box ms-generation-briefing">
+        <div className="ms-generation-notes">
           <div className="ms-briefing-item">
             <span className="ms-briefing-badge">Component Inputs</span>
             <p>Canvas, WebGL parameters, system fonts, screen geometry, audio context, and hardware traits.</p>
@@ -522,7 +465,7 @@ function BrowserFingerprintGenerationVisual() {
           </div>
         </div>
 
-        <section className="ms-math-card">
+        <section className="ms-math-card ms-generation-stage">
           <header className="ms-math-card-header">
             <span className="ms-math-card-title">
               <Calculator size={15} />
@@ -536,9 +479,10 @@ function BrowserFingerprintGenerationVisual() {
           <p className="ms-math-desc">
             Offscreen <strong>Canvas &amp; WebGL</strong> rendering pipelines generate 2D geometry and text; pixel byte streams are hashed into compact, deterministic 32-bit integers.
           </p>
+          <a className="ms-formula-reference" href="https://datatracker.ietf.org/doc/draft-eastlake-fnv/" target="_blank" rel="noreferrer">Formula source: IETF FNV-1a specification</a>
         </section>
 
-        <section className="ms-math-card">
+        <section className="ms-math-card ms-generation-stage">
           <header className="ms-math-card-header">
             <span className="ms-math-card-title">
               <Cpu size={15} />
@@ -552,6 +496,7 @@ function BrowserFingerprintGenerationVisual() {
           <p className="ms-math-desc">
             Inputs are lexicographically sorted into canonical JSON. <strong>Browser Signature</strong> captures full engine state; <strong>Coarse Device Signature</strong> isolates hardware invariants.
           </p>
+          <a className="ms-formula-reference" href="https://csrc.nist.gov/pubs/fips/180-4/upd1/final" target="_blank" rel="noreferrer">Formula source: NIST SHA-256 standard</a>
         </section>
       </div>
     </div>
@@ -561,18 +506,18 @@ function BrowserFingerprintGenerationVisual() {
 function IndividualFingerprintComparisonVisual() {
   return (
     <div className="ms-comparison-layout" aria-label="Individual fingerprint comparison and match results">
-      <figure className="ms-photo-banner">
-        <Image
-          src="/images/best-device-matches.png"
-          width={1024}
-          height={513}
-          alt="Best device matches prototype output showing device continuity score across IP changes"
-          priority
-        />
-      </figure>
+      <section className="ms-match-panel" aria-label="Best device matches">
+        <div className="ms-match-heading"><FingerprintPattern size={24} /><div><strong>Best device matches</strong><span>Similarity uses available component weights, not one exact whole hash.</span></div></div>
+        <div className="ms-match-table" role="table" aria-label="Sample device match scores">
+          <div className="ms-match-row ms-match-labels" role="row"><span>Prior observation</span><span>Device score</span><span>Browser</span><span>Network</span></div>
+          <div className="ms-match-row" role="row"><span>Chrome · normal</span><b>93<small>%</small></b><span>same browser</span><i>IP changed</i></div>
+          <div className="ms-match-row" role="row"><span>Chrome · normal</span><b>80<small>%</small></b><span>different browser</span><i>IP changed</i></div>
+          <div className="ms-match-row" role="row"><span>Chrome · private</span><b>72<small>%</small></b><span>different browser</span><i>VPN-like path</i></div>
+        </div>
+      </section>
 
       <div className="ms-comparison-grid">
-        <section className="ms-math-card">
+        <section className="ms-math-card ms-comparison-stage">
           <header className="ms-math-card-header">
             <span className="ms-math-card-title">
               <Calculator size={15} />
@@ -583,12 +528,15 @@ function IndividualFingerprintComparisonVisual() {
           <div className="ms-math-formula">
             Score = round(100 × (Σ wᵢ · sᵢ) / Σ wᵢ)
           </div>
-          <p className="ms-math-desc">
-            Aggregates available signals: <strong>Exact match</strong> for OS (w=18) &amp; GPU (w=14); <strong>Jaccard</strong> J(A,B)=|A∩B|/|A∪B| for fonts &amp; codecs; <strong>Closeness</strong> max(0, 1 - |Δd|/300) for screen geometry.
-          </p>
+          <div className="ms-math-methods">
+            <p><strong>Exact match</strong><span>OS (w=18) and GPU (w=14)</span></p>
+            <p><strong>Jaccard</strong><span>J(A,B) = |A ∩ B| / |A ∪ B| for fonts and codecs</span></p>
+            <p><strong>Closeness</strong><span>max(0, 1 − |Δd| / 300) for screen geometry</span></p>
+          </div>
+          <a className="ms-formula-reference" href="https://scikit-learn.org/stable/modules/generated/sklearn.metrics.jaccard_score.html" target="_blank" rel="noreferrer">Formula source: Jaccard similarity coefficient</a>
         </section>
 
-        <section className="ms-math-card">
+        <section className="ms-math-card ms-comparison-stage">
           <header className="ms-math-card-header">
             <span className="ms-math-card-title">
               <ShieldCheck size={15} />
@@ -602,6 +550,7 @@ function IndividualFingerprintComparisonVisual() {
           <p className="ms-math-desc">
             When browsers differ (e.g. Chrome vs Firefox), volatile engine hashes are masked out. The device score establishes physical hardware continuity (e.g. high-confidence match) despite IP or browser changes.
           </p>
+          <a className="ms-formula-reference" href="/papers/ndss2017_02B-3_Cao_paper.pdf" target="_blank" rel="noreferrer">Research source: Cross-Browser Fingerprinting, NDSS 2017</a>
         </section>
       </div>
     </div>
@@ -663,7 +612,7 @@ export default function Home() {
 
                 <figure className="ms-vpn-diagram">
                   <Image
-                    src="/images/vpn-process-diagram.png"
+                    src="/images/vpn-process-diagram-simple.png"
                     width={1672}
                     height={941}
                     priority
@@ -722,6 +671,111 @@ export default function Home() {
           );
         }
 
+        if (item.presenter === 'Vishwas' && item.title === 'Current System Flaws and Limitations') {
+          return (
+            <Slide
+              key={`${item.presenter}-${item.title}`}
+              nav={item.title}
+              notes={item.brief}
+              className="ms-slide ms-flaws-slide ms-owner-vishwas"
+            >
+              <div className="ms-flaws-main">
+                <div className="ms-kicker">
+                  <span>{String(index + 2).padStart(2, '0')}</span>
+                  <span className="ms-kicker-dot" />
+                  <span>{item.presenter}</span>
+                </div>
+                <h2>{item.title}</h2>
+                <SystemFlawsVisual />
+              </div>
+            </Slide>
+          );
+        }
+
+        if (item.presenter === 'Vishwas' && item.title === 'Future Improvements') {
+          return (
+            <Slide
+              key={`${item.presenter}-${item.title}`}
+              nav={item.title}
+              notes={item.brief}
+              className="ms-slide ms-improvement-slide ms-owner-vishwas"
+            >
+              <div className="ms-flaws-main">
+                <div className="ms-kicker">
+                  <span>{String(index + 2).padStart(2, '0')}</span>
+                  <span className="ms-kicker-dot" />
+                  <span>{item.presenter}</span>
+                </div>
+                <h2>{item.title}</h2>
+                <FutureImprovementsVisual />
+              </div>
+            </Slide>
+          );
+        }
+
+        if (item.presenter === 'Vishwas' && item.title === 'Statistical Parameter-Importance Analysis') {
+          return (
+            <Slide
+              key={`${item.presenter}-${item.title}`}
+              nav={item.title}
+              notes={item.brief}
+              className="ms-slide ms-flaws-slide ms-owner-vishwas"
+            >
+              <div className="ms-flaws-main">
+                <div className="ms-kicker">
+                  <span>{String(index + 2).padStart(2, '0')}</span>
+                  <span className="ms-kicker-dot" />
+                  <span>{item.presenter}</span>
+                </div>
+                <h2>{item.title}</h2>
+                <ParameterImportanceVisual />
+              </div>
+            </Slide>
+          );
+        }
+
+        if (item.presenter === 'Vishwas' && item.title === 'Redundancy Analysis and Feature Selection') {
+          return (
+            <Slide
+              key={`${item.presenter}-${item.title}`}
+              nav={item.title}
+              notes={item.brief}
+              className="ms-slide ms-improvement-slide ms-owner-vishwas"
+            >
+              <div className="ms-flaws-main">
+                <div className="ms-kicker">
+                  <span>{String(index + 2).padStart(2, '0')}</span>
+                  <span className="ms-kicker-dot" />
+                  <span>{item.presenter}</span>
+                </div>
+                <h2>{item.title}</h2>
+                <RedundancySelectionVisual />
+              </div>
+            </Slide>
+          );
+        }
+
+        if (item.presenter === 'Vishwas' && item.title === 'Conclusion') {
+          return (
+            <Slide
+              key={`${item.presenter}-${item.title}`}
+              nav={item.title}
+              notes={item.brief}
+              className="ms-slide ms-flaws-slide ms-owner-vishwas"
+            >
+              <div className="ms-flaws-main">
+                <div className="ms-kicker">
+                  <span>{String(index + 2).padStart(2, '0')}</span>
+                  <span className="ms-kicker-dot" />
+                  <span>{item.presenter}</span>
+                </div>
+                <h2>{item.title}</h2>
+                <ConclusionVisual />
+              </div>
+            </Slide>
+          );
+        }
+
         return (
           <Slide
             key={`${item.presenter}-${item.title}`}
@@ -773,20 +827,7 @@ export default function Home() {
                 )}
 
                 {item.presenter === 'Saumya' && item.title === 'Individual Fingerprint Comparison' && (
-                  <div className="ms-briefing-box">
-                    <div className="ms-briefing-item">
-                      <span className="ms-briefing-badge">Weighted Similarity</span>
-                      <p>Component-level scoring avoids brittle all-or-nothing hash comparisons.</p>
-                    </div>
-                    <div className="ms-briefing-item">
-                      <span className="ms-briefing-badge">Cross-Browser Mask</span>
-                      <p>Filters out volatile engine hashes to track same physical device across browsers.</p>
-                    </div>
-                    <div className="ms-briefing-item">
-                      <span className="ms-briefing-badge">Decision Threshold</span>
-                      <p>Score &ge; 86% marks likely-same-device; confirmed across dynamic IP shifts.</p>
-                    </div>
-                  </div>
+                  <p className="ms-comparison-context">Compare browser sessions using stable device signals and independent network evidence.</p>
                 )}
               </header>
 
