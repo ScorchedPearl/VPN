@@ -23,6 +23,8 @@ import {
   IconShrink,
   IconPresent,
   IconClose,
+  IconSun,
+  IconMoon,
 } from '@/deck/icons';
 
 /* ── The paged presentation engine + the Slidev-style chrome (dock + rail).
@@ -100,6 +102,7 @@ export default function Deck({ children }: { children: ReactNode }) {
   const [uiHidden, setUiHidden] = useState(false);
   const [nearDock, setNearDock] = useState(false);
   const [cursorIdle, setCursorIdle] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [noteOverrides, setNoteOverrides] = useState<Record<number, string>>({});
 
   // load presenter flag + initial hash + persisted notes on client
@@ -115,7 +118,25 @@ export default function Deck({ children }: { children: ReactNode }) {
       const saved = JSON.parse(localStorage.getItem('deck:notes') || '{}');
       setNoteOverrides(saved);
     } catch {}
+    try {
+      const savedTheme = localStorage.getItem('deck:theme');
+      if (savedTheme === 'light' || savedTheme === 'dark') setTheme(savedTheme);
+    } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem('deck:theme', theme);
+    } catch {}
+    return () => {
+      delete document.documentElement.dataset.theme;
+    };
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
   }, []);
 
   // per-slide build maxima (so going back restores the right click state) and
@@ -255,6 +276,10 @@ export default function Deck({ children }: { children: ReactNode }) {
         case 'H':
           setUiHidden((v) => !v);
           break;
+        case 't':
+        case 'T':
+          toggleTheme();
+          break;
         case 'Escape':
           setRailOpen(false);
           setGridOpen(false);
@@ -265,7 +290,7 @@ export default function Deck({ children }: { children: ReactNode }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [next, prev, go, total, toggleRail, toggleGrid, toggleFs, openPresenter]);
+  }, [next, prev, go, total, toggleRail, toggleGrid, toggleFs, openPresenter, toggleTheme]);
 
   // safety net: if the authored deck kept the placeholder tab title, derive
   // one from the current slide's heading so shared links look right.
@@ -522,6 +547,14 @@ export default function Deck({ children }: { children: ReactNode }) {
               onClick={toggleFs}
             >
               {fs ? <IconShrink /> : <IconExpand />}
+            </button>
+            <button
+              className="noir-icon-btn"
+              data-tip={theme === 'dark' ? 'Light theme (T)' : 'Dark theme (T)'}
+              aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+              onClick={toggleTheme}
+            >
+              {theme === 'dark' ? <IconSun /> : <IconMoon />}
             </button>
             <button
               className="noir-icon-btn"

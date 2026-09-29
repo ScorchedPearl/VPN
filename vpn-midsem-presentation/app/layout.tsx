@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 
 export const metadata: Metadata = {
   title: "VPN Detection · Midsem Research Presentation",
-  description: "Evidence-led interactive presentation on VPN detection and browser fingerprinting research",
+  description: "Editable 20-slide midsem presentation structure",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
