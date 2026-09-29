@@ -152,6 +152,379 @@ html[data-theme='light'] .ms-image-space {
     linear-gradient(135deg, color-mix(in srgb, var(--ms-owner) 7%, transparent), transparent 56%),
     rgba(255, 255, 255, 0.64);
 }
+
+/* Opening slide: a simple, light cover that introduces the project and team. */
+.ms-midsem-cover {
+  color: #10233b;
+  background: #f4f8fc;
+  box-shadow: inset 0 0 190px rgba(78, 157, 193, 0.1);
+}
+
+.ms-midsem-cover::before {
+  inset: -4%;
+  background:
+    radial-gradient(circle at 72% 24%, rgba(10, 167, 196, 0.16), transparent 26%),
+    radial-gradient(circle at 88% 86%, rgba(103, 87, 199, 0.12), transparent 33%),
+    url('/images/light-network-background.png') center / cover no-repeat;
+  opacity: 0.82;
+  animation-duration: 38s;
+}
+
+.ms-midsem-cover .container {
+  max-width: 1380px;
+  height: 100%;
+}
+
+.ms-midsem-cover-layout {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(42px, 8vh, 94px);
+}
+
+.ms-midsem-cover-main {
+  max-width: 920px;
+}
+
+.ms-midsem-cover-kicker {
+  margin-bottom: clamp(16px, 2.6vh, 26px);
+  color: #087fa9;
+  font: 650 clamp(12px, 1vw, 14px) var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.ms-midsem-cover h1 {
+  color: #10233b;
+  font-size: clamp(58px, 7vw, 110px);
+  letter-spacing: -0.065em;
+  line-height: 0.94;
+}
+
+.ms-midsem-cover h1 em {
+  display: block;
+  color: #087fa9;
+  font-style: normal;
+}
+
+.ms-midsem-cover-topic {
+  max-width: 650px;
+  margin-top: clamp(20px, 3vh, 30px);
+  color: #52677d;
+  font-size: clamp(20px, 2.1vw, 29px);
+  line-height: 1.3;
+}
+
+.ms-midsem-cover-team {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(22px, 4vw, 68px);
+  margin: 0;
+}
+
+.ms-midsem-cover-team div {
+  min-width: 175px;
+  padding-top: 13px;
+  border-top: 1px solid rgba(8, 127, 169, 0.28);
+}
+
+.ms-midsem-cover-team dt {
+  color: #087fa9;
+  font: 600 clamp(10px, 0.85vw, 12px) var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+.ms-midsem-cover-team dd {
+  margin: 7px 0 0;
+  color: #1b354f;
+  font-size: clamp(16px, 1.35vw, 20px);
+  font-weight: 650;
+}
+
+/* Slide 01: diagram-led introduction for the light presentation theme. */
+.ms-vpn-intro {
+  color: #10233b;
+  background: #f4f8fc;
+  box-shadow: inset 0 0 180px rgba(78, 157, 193, 0.08);
+}
+
+.ms-vpn-intro::before {
+  inset: -4%;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(10, 167, 196, 0.13), transparent 31%),
+    radial-gradient(circle at 86% 88%, rgba(103, 87, 199, 0.08), transparent 34%),
+    url('/images/light-network-background.png') center / cover no-repeat;
+  opacity: 0.7;
+  animation-duration: 38s;
+}
+
+.ms-vpn-intro .container {
+  max-width: 1380px;
+  height: 100%;
+  align-items: stretch;
+}
+
+.ms-vpn-intro-layout {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(300px, 0.82fr) minmax(0, 1.18fr);
+  align-items: center;
+  gap: clamp(28px, 4vw, 68px);
+}
+
+.ms-vpn-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(15px, 2.1vh, 24px);
+  min-width: 0;
+}
+
+.ms-vpn-copy h2 {
+  color: #10233b;
+  font-size: clamp(42px, 4.75vw, 70px);
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+}
+
+.ms-vpn-lead {
+  max-width: 28ch;
+  color: #52677d;
+  font-size: clamp(16px, 1.45vw, 21px);
+  line-height: 1.48;
+}
+
+.ms-vpn-reasons {
+  margin-top: clamp(4px, 1vh, 12px);
+  padding-top: clamp(14px, 1.8vh, 22px);
+  border-top: 1px solid rgba(8, 127, 169, 0.24);
+}
+
+.ms-vpn-reasons > p {
+  color: #087fa9;
+  font: 650 clamp(11px, 0.95vw, 13px) var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ms-vpn-reasons ul {
+  display: grid;
+  gap: clamp(11px, 1.4vh, 16px);
+  margin: clamp(12px, 1.6vh, 18px) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ms-vpn-reasons li {
+  position: relative;
+  padding-left: 18px;
+  color: #52677d;
+  font-size: clamp(13px, 1.05vw, 16px);
+  line-height: 1.35;
+}
+
+.ms-vpn-reasons li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.48em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #078f78;
+  box-shadow: 0 0 0 4px rgba(7, 143, 120, 0.1);
+}
+
+.ms-vpn-reasons strong {
+  display: block;
+  color: #1b354f;
+  font-size: 1em;
+  font-weight: 650;
+}
+
+.ms-vpn-reasons span {
+  display: block;
+  margin-top: 2px;
+}
+
+.ms-vpn-diagram {
+  min-height: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgba(45, 78, 111, 0.13);
+  border-radius: clamp(18px, 2.2vw, 30px);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 24px 64px -38px rgba(35, 68, 102, 0.42);
+}
+
+.ms-vpn-diagram img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Slide 03: the limitation of relying on a public IP address alone. */
+.ms-ip-problem {
+  color: #10233b;
+  background: #f4f8fc;
+  box-shadow: inset 0 0 180px rgba(78, 157, 193, 0.08);
+}
+
+.ms-ip-problem::before {
+  inset: -4%;
+  background:
+    radial-gradient(circle at 12% 16%, rgba(10, 167, 196, 0.12), transparent 30%),
+    radial-gradient(circle at 90% 84%, rgba(103, 87, 199, 0.09), transparent 35%),
+    url('/images/light-network-background.png') center / cover no-repeat;
+  opacity: 0.7;
+  animation-duration: 38s;
+}
+
+.ms-ip-problem .container {
+  max-width: 1380px;
+  height: 100%;
+}
+
+.ms-ip-problem-layout {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.15fr);
+  align-items: center;
+  gap: clamp(28px, 4vw, 68px);
+}
+
+.ms-ip-problem-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(13px, 1.8vh, 20px);
+}
+
+.ms-ip-problem-copy h2 {
+  color: #10233b;
+  font-size: clamp(40px, 4.4vw, 66px);
+  line-height: 0.98;
+  letter-spacing: -0.05em;
+}
+
+.ms-ip-problem-lead {
+  max-width: 30ch;
+  color: #52677d;
+  font-size: clamp(16px, 1.4vw, 20px);
+  line-height: 1.42;
+}
+
+.ms-ip-problem-points {
+  padding: clamp(13px, 1.7vh, 19px) 0;
+  border-top: 1px solid rgba(8, 127, 169, 0.24);
+  border-bottom: 1px solid rgba(8, 127, 169, 0.16);
+}
+
+.ms-ip-problem-points > p {
+  color: #087fa9;
+  font: 650 clamp(11px, 0.92vw, 13px) var(--font-mono);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.ms-ip-problem-points ul {
+  display: grid;
+  gap: 9px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ms-ip-problem-points li {
+  position: relative;
+  padding-left: 17px;
+  color: #52677d;
+  font-size: clamp(13px, 1.03vw, 16px);
+  line-height: 1.32;
+}
+
+.ms-ip-problem-points li::before {
+  content: '';
+  position: absolute;
+  top: 0.46em;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #078f78;
+}
+
+.ms-ip-problem-approach {
+  max-width: 35ch;
+  color: #52677d;
+  font-size: clamp(14px, 1.13vw, 17px);
+  line-height: 1.42;
+}
+
+.ms-ip-problem-approach strong {
+  color: #1b354f;
+}
+
+.ms-ip-problem-figure {
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgba(45, 78, 111, 0.13);
+  border-radius: clamp(18px, 2.2vw, 30px);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 24px 64px -38px rgba(35, 68, 102, 0.42);
+}
+
+.ms-ip-problem-figure img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+@media (max-width: 720px) {
+  .ms-midsem-cover-layout {
+    gap: 34px;
+  }
+
+  .ms-midsem-cover-team {
+    gap: 16px;
+  }
+
+  .ms-midsem-cover-team div {
+    min-width: 145px;
+  }
+
+  .ms-vpn-intro-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .ms-vpn-reasons {
+    display: none;
+  }
+
+  .ms-ip-problem-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .ms-ip-problem-points,
+  .ms-ip-problem-approach {
+    display: none;
+  }
+}
 @media (max-height: 780px) { .ms-main { gap: 14px; max-height: calc(100vh - 100px); } .ms-main header h2 { font-size: clamp(32px, 4.2vw, 56px); } .ms-main header > p { font-size: clamp(15px, 1.4vw, 20px); } .ms-point p { font-size: clamp(14px, 1.25vw, 18px); } .ms-point { padding: 10px 15px; } .ms-proof-image img { max-height: 36vh; } .ms-evidence.multiple .ms-proof-image img { max-height: 16vh; } }
 @media (max-width: 900px) { .ms-layout.has-evidence { grid-template-columns: 1fr 1fr; } .ms-main header h2 { font-size: clamp(31px, 4.8vw, 50px); } .ms-point p { font-size: 14px; } .ms-proof figcaption { flex-direction: column; align-items: flex-start; } }
 @media (max-width: 600px) { .ms-main { max-height: calc(100svh - 92px); gap: 10px; } .ms-main header h2 { font-size: clamp(28px, 7vw, 40px); } .ms-main header > p { font-size: 14px; } .ms-layout.has-evidence { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); gap: 10px; } .ms-points { gap: 7px; } .ms-point { padding: 7px 10px; border-radius: 10px; } .ms-point p { font-size: 12px; line-height: 1.22; } .ms-point > span { font-size: 10px; } .ms-layout:not(.has-evidence) .ms-points { gap: 8px; } .ms-proof-image img { max-height: 30vh; } .ms-evidence.multiple .ms-proof-image img { max-height: 13vh; } .ms-proof figcaption { font-size: 9px; padding: 5px 8px; } .ms-proof figcaption a { font-size: 8px; } .ms-cover h1 { font-size: clamp(50px, 12vw, 70px); } .ms-cover-inner > p { font-size: 18px; } .ms-cover-bottom { font-size: 9px; } .ms-orbit { width: 90vw; right: -35%; top: 10%; } .ms-statement .ms-main header h2 { font-size: clamp(33px, 8vw, 50px); } .ms-statement .ms-main header > p { font-size: 16px; } .ms-statement .ms-layout.has-evidence { height: auto; } .ms-final-banner { font-size: 13px; padding: 9px 12px; } }
