@@ -101,6 +101,79 @@ html[data-theme='light'] .ms-final-banner { color: #073f35; background: #b9f2e3;
   text-wrap: balance;
 }
 
+/* Saumya — Problem Statement */
+.ms-problem {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(18px, 2.7vh, 31px);
+  padding: clamp(13px, 2.1vw, 31px) 0;
+}
+
+.ms-problem-lead {
+  max-width: 900px;
+  color: var(--ms-point-text);
+  font-size: clamp(20px, 2vw, 30px);
+  line-height: 1.25;
+  letter-spacing: -.025em;
+}
+
+.ms-problem-lead strong { color: var(--ms-owner); font-weight: 700; }
+
+.ms-problem-shift { display: grid; grid-template-columns: minmax(0, 1fr) 46px minmax(0, 1.16fr); align-items: stretch; gap: 12px; }
+.ms-problem-card { position: relative; min-height: 150px; padding: clamp(17px, 1.8vw, 26px); border-radius: 18px; display: flex; flex-direction: column; justify-content: center; gap: 13px; border: 1px solid var(--ms-point-border); }
+.ms-problem-before { background: rgba(22, 46, 72, .5); }
+.ms-problem-after { background: color-mix(in srgb, var(--ms-owner) 14%, rgba(22, 46, 72, .68)); border-color: color-mix(in srgb, var(--ms-owner) 45%, transparent); }
+.ms-problem-card p { color: var(--ms-point-text); font-size: clamp(16px, 1.5vw, 22px); line-height: 1.25; font-weight: 570; letter-spacing: -.02em; }
+.ms-problem-card em { color: var(--ms-owner); font-style: normal; }
+.ms-problem-label { color: var(--ms-owner); font: 650 clamp(10px, .82vw, 12px) var(--font-mono); letter-spacing: .12em; text-transform: uppercase; }
+.ms-problem-status { align-self: flex-start; padding: 4px 8px; border-radius: 999px; background: rgba(255,255,255,.08); color: var(--ms-lead); font: 600 10px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+.ms-problem-after .ms-problem-status { color: #09221f; background: var(--ms-owner); }
+.ms-problem-arrow { display: flex; align-items: center; justify-content: center; color: var(--ms-owner); font-size: clamp(28px, 3vw, 43px); font-weight: 300; }
+
+.ms-problem-bottom { display: grid; grid-template-columns: .83fr 1.17fr; gap: clamp(16px, 1.7vw, 27px); }
+.ms-problem-example, .ms-problem-criteria { border-radius: 16px; border: 1px solid var(--ms-point-border); background: var(--ms-point-bg); padding: clamp(15px, 1.55vw, 22px); }
+.ms-problem-example { display: grid; grid-template-columns: auto 1fr; column-gap: 15px; align-items: center; }
+.ms-device { grid-row: span 2; width: 73px; height: 73px; border-radius: 13px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; background: rgba(100, 217, 247, .13); border: 1px solid rgba(100, 217, 247, .22); color: var(--ms-cyan); }
+.ms-device span:first-child { font-size: 25px; line-height: .8; }.ms-device span:last-child { font: 600 8px var(--font-mono); text-transform: uppercase; letter-spacing: .05em; }
+.ms-browser-row { display: flex; align-items: center; gap: 9px; color: var(--ms-point-text); font: 600 clamp(13px, 1.15vw, 16px) var(--font-mono); }.ms-browser-row b { color: var(--ms-owner); font-size: 21px; }
+.ms-problem-example p, .ms-problem-criteria > p { color: var(--ms-lead); font-size: clamp(12px, 1.08vw, 15px); line-height: 1.32; }.ms-problem-example strong { color: var(--ms-point-text); }
+.ms-problem-criteria { display: flex; flex-direction: column; gap: 12px; }.ms-criteria-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }.ms-criteria-grid div { display: flex; flex-direction: column; gap: 5px; padding-left: 11px; border-left: 2px solid var(--ms-owner); }.ms-criteria-grid b { color: var(--ms-point-text); font: 700 clamp(12px, 1vw, 14px) var(--font-mono); letter-spacing: .08em; }.ms-criteria-grid span { color: var(--ms-lead); font-size: clamp(11px, .95vw, 14px); line-height: 1.2; }.ms-problem-criteria > p { color: var(--ms-point-text); font-weight: 550; }
+
+html[data-theme='light'] .ms-problem-before { background: rgba(220, 239, 247, .68); }
+html[data-theme='light'] .ms-problem-after { background: color-mix(in srgb, var(--ms-owner) 13%, rgba(240, 251, 249, .86)); }
+html[data-theme='light'] .ms-problem-after .ms-problem-status { color: #fff; }
+
+@media (max-width: 800px) { .ms-problem-shift { grid-template-columns: 1fr; }.ms-problem-arrow { transform: rotate(90deg); height: 30px; }.ms-problem-bottom { grid-template-columns: 1fr; } }
+
+/* Saumya — Proposed Framework */
+.ms-framework { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: clamp(16px, 2.3vh, 27px); padding: clamp(11px, 1.6vw, 24px) 0; }
+.ms-framework-intro { display: flex; flex-direction: column; gap: 7px; }.ms-framework-eyebrow, .ms-framework-note > span { color: var(--ms-owner); font: 650 clamp(10px, .82vw, 12px) var(--font-mono); letter-spacing: .12em; text-transform: uppercase; }.ms-framework-intro p { color: var(--ms-lead); font-size: clamp(16px, 1.45vw, 21px); line-height: 1.28; max-width: 850px; }.ms-framework-intro strong { color: var(--ms-point-text); font-weight: 650; }
+.ms-framework-flow { display: flex; flex-direction: column; gap: 9px; }
+.ms-flow-top { display: grid; grid-template-columns: minmax(0, .9fr) 26px minmax(0, .9fr) 26px minmax(0, 1.35fr); align-items: stretch; }
+.ms-flow-bottom { display: grid; grid-template-columns: minmax(0, 1fr) 42px minmax(0, 1.22fr); align-items: stretch; }
+.ms-flow-step { min-width: 0; border: 1px solid var(--ms-point-border); border-radius: 16px; background: var(--ms-point-bg); padding: clamp(13px, 1.25vw, 18px); display: flex; gap: 11px; align-items: flex-start; }.ms-flow-step h3 { color: var(--ms-point-text); margin: 1px 0 5px; font-size: clamp(13px, 1.15vw, 16px); line-height: 1.1; letter-spacing: -.015em; }.ms-flow-step p { color: var(--ms-lead); font-size: clamp(10px, .9vw, 12px); line-height: 1.32; }.ms-flow-number { flex: none; color: var(--ms-owner); font: 700 11px var(--font-mono); padding-top: 2px; }.ms-flow-arrow { align-self: center; display: flex; align-items: center; justify-content: center; color: var(--ms-owner); font-size: 22px; font-weight: 300; }.ms-flow-down { grid-column: 5; grid-row: 2; height: 22px; }
+.ms-flow-match { display: grid; grid-template-columns: auto 1fr; }.ms-cross-browser { grid-column: 1 / -1; margin-top: 11px; padding: 9px 10px 10px; border-radius: 10px; background: color-mix(in srgb, var(--ms-owner) 11%, transparent); border-left: 2px solid var(--ms-owner); display: flex; flex-direction: column; gap: 4px; }.ms-cross-browser b { color: var(--ms-owner); font: 700 10px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }.ms-cross-browser span { color: var(--ms-point-text); font-size: clamp(10px, .87vw, 12px); line-height: 1.28; }.ms-cross-browser em { color: var(--ms-owner); font-style: normal; font-weight: 700; }
+.ms-flow-transition { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 24px; color: var(--ms-lead); }.ms-flow-transition span { color: var(--ms-owner); font-size: 22px; line-height: 1; }.ms-flow-transition p { font: 600 clamp(10px, .85vw, 12px) var(--font-mono); letter-spacing: .02em; }.ms-flow-transition strong { color: var(--ms-point-text); }.ms-flow-risk { display: grid; grid-template-columns: auto 1fr; }.ms-risk-output { grid-column: 1 / -1; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--ms-point-border); display: flex; justify-content: space-between; align-items: center; gap: 8px; }.ms-risk-output span { color: var(--ms-owner); font: 700 clamp(9px, .75vw, 11px) var(--font-mono); letter-spacing: .05em; }.ms-risk-output b { color: var(--ms-lead); font-size: clamp(9px, .75vw, 11px); font-weight: 600; white-space: nowrap; }
+.ms-framework-note { display: flex; align-items: baseline; gap: 13px; padding: 10px 13px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--ms-owner) 27%, transparent); background: color-mix(in srgb, var(--ms-owner) 7%, transparent); }.ms-framework-note > span { flex: none; }.ms-framework-note p { color: var(--ms-lead); font-size: clamp(11px, .95vw, 13px); line-height: 1.35; }.ms-framework-note strong { color: var(--ms-point-text); }
+html[data-theme='light'] .ms-flow-step { background: rgba(255,255,255,.67); }
+html[data-theme='light'] .ms-framework-note { background: color-mix(in srgb, var(--ms-owner) 8%, rgba(255,255,255,.65)); }
+@media (max-width: 800px) { .ms-flow-top, .ms-flow-bottom { grid-template-columns: 1fr; }.ms-flow-arrow { transform: rotate(90deg); height: 20px; }.ms-flow-transition { margin-block: 2px; }.ms-framework-note { align-items: flex-start; flex-direction: column; gap: 5px; } }
+
+/* Saumya — System Architecture */
+.ms-architecture { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: clamp(11px, 1.6vh, 18px); padding: clamp(8px, 1.2vw, 17px) 0; }
+.ms-architecture-intro { display: flex; flex-direction: column; gap: 5px; }.ms-architecture-intro > span, .ms-architecture-foot > span { color: var(--ms-owner); font: 650 clamp(10px, .82vw, 12px) var(--font-mono); letter-spacing: .12em; text-transform: uppercase; }.ms-architecture-intro p { color: var(--ms-lead); font-size: clamp(15px, 1.35vw, 20px); line-height: 1.24; }.ms-architecture-intro strong { color: var(--ms-point-text); }
+.ms-architecture-top, .ms-architecture-bottom { display: grid; grid-template-columns: minmax(0, 1fr) 37px minmax(0, 1fr) 37px minmax(0, 1.16fr); align-items: stretch; }.ms-architecture-bottom { grid-template-columns: minmax(0, 1fr) 46px minmax(0, 1.17fr) 46px minmax(0, 1fr); }
+.ms-arch-node { min-width: 0; border: 1px solid var(--ms-point-border); border-radius: 15px; background: var(--ms-point-bg); padding: clamp(12px, 1.15vw, 17px); display: grid; grid-template-columns: 31px 1fr; column-gap: 10px; align-content: start; }.ms-arch-node h3 { color: var(--ms-point-text); margin: 1px 0 4px; font-size: clamp(12px, 1.08vw, 16px); line-height: 1.1; letter-spacing: -.015em; }.ms-arch-node p { color: var(--ms-lead); font-size: clamp(9px, .84vw, 12px); line-height: 1.28; }.ms-arch-icon { grid-row: span 2; display: flex; align-items: flex-start; justify-content: center; color: var(--ms-owner); padding-top: 1px; }.ms-arch-node ul { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 3px; margin: 10px 0 0; padding-top: 8px; border-top: 1px solid var(--ms-point-border); color: var(--ms-point-text); font-size: clamp(9px, .78vw, 11px); line-height: 1.2; list-style: none; }.ms-arch-node li::before { content: '·'; color: var(--ms-owner); font-weight: 800; padding-right: 5px; }.ms-arch-node small { grid-column: 1 / -1; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--ms-point-border); color: var(--ms-owner); font: 650 clamp(8px, .7vw, 10px) var(--font-mono); letter-spacing: .055em; text-transform: uppercase; }
+.ms-arch-fingerprint { border-color: color-mix(in srgb, var(--ms-owner) 40%, transparent); }.ms-arch-server { background: color-mix(in srgb, var(--ms-owner) 8%, var(--ms-point-bg)); }.ms-arch-analysis { border-color: color-mix(in srgb, var(--ms-owner) 44%, transparent); background: color-mix(in srgb, var(--ms-owner) 9%, var(--ms-point-bg)); }
+.ms-arch-arrow { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--ms-owner); }.ms-arch-arrow span { color: var(--ms-lead); font: 600 8px var(--font-mono); text-align: center; text-transform: uppercase; letter-spacing: .04em; line-height: 1.1; }.ms-arch-arrow-wide span { font-size: 8px; }
+.ms-architecture-bridge { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--ms-lead); }.ms-architecture-bridge span { color: var(--ms-owner); font-size: 23px; line-height: 1; }.ms-architecture-bridge p { font: 600 clamp(9px, .82vw, 11px) var(--font-mono); letter-spacing: .025em; }
+.ms-architecture-foot { display: flex; align-items: baseline; gap: 12px; padding: 9px 12px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--ms-owner) 27%, transparent); background: color-mix(in srgb, var(--ms-owner) 7%, transparent); }.ms-architecture-foot > span { flex: none; }.ms-architecture-foot p { color: var(--ms-lead); font-size: clamp(10px, .85vw, 12px); line-height: 1.3; }
+html[data-theme='light'] .ms-arch-node { background: rgba(255,255,255,.67); }
+html[data-theme='light'] .ms-architecture-foot { background: color-mix(in srgb, var(--ms-owner) 8%, rgba(255,255,255,.65)); }
+@media (max-width: 800px) { .ms-architecture-top, .ms-architecture-bottom { grid-template-columns: 1fr; }.ms-arch-arrow { transform: rotate(90deg); height: 20px; }.ms-architecture-bridge { margin-block: 2px; }.ms-architecture-foot { flex-direction: column; align-items: flex-start; gap: 4px; } }
+
 .ms-image-grid {
   min-width: 0;
   min-height: min(68vh, 590px);
