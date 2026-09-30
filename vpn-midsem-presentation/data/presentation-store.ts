@@ -68,6 +68,12 @@ export const presentationStore: PresenterSection[] = [
           'Explain the lack of systems that combine browser fingerprints, device similarity, and network signals for explainable VPN detection.',
         imageSlots: 2,
       },
+      {
+        title: 'Limits of Absolute Device Uniqueness',
+        brief:
+          'Explain why browser and hardware signals cannot guarantee universal device uniqueness, particularly under privacy protections and active evasion.',
+        imageSlots: 0,
+      },
     ],
   },
   {

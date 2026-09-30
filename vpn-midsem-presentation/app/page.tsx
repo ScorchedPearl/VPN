@@ -557,6 +557,202 @@ function IndividualFingerprintComparisonVisual() {
   );
 }
 
+function LiteratureReviewVisual() {
+  return (
+    <div className="ms-vichanshu-layout ms-literature-review" aria-label="Literature review of browser fingerprinting research">
+      <header className="ms-vichanshu-heading">
+        <div className="ms-kicker"><span>04</span><span className="ms-kicker-dot" /><span>Vichanshu</span></div>
+        <h2>Literature Review</h2>
+        <p>Two foundational studies establish why browser signals can identify devices and how the same physical device can be linked across browsers.</p>
+      </header>
+      <div className="ms-literature-papers">
+        <article className="ms-literature-paper">
+          <figure><Image src="/evidence/literature-beauty-paper.png" width={241} height={290} alt="First page of Beauty and the Beast browser fingerprinting paper" /></figure>
+          <div>
+            <span className="ms-vichanshu-number">01</span>
+            <h3>Beauty and the Beast</h3>
+            <p className="ms-paper-authors">Laperdrix et al. · IEEE S&amp;P · 2016</p>
+            <p>Shows that ordinary web-browser attributes can form highly unique fingerprints. It reports <strong>89.4% uniqueness</strong> on desktop devices, while mobile fingerprints are less distinctive.</p>
+          </div>
+        </article>
+        <article className="ms-literature-paper">
+          <figure><Image src="/evidence/literature-cross-browser-paper.png" width={244} height={315} alt="First page of Cross-Browser Fingerprinting via OS and Hardware Level Features paper" /></figure>
+          <div>
+            <span className="ms-vichanshu-number">02</span>
+            <h3>Cross-Browser Fingerprinting</h3>
+            <p className="ms-paper-authors">Cao, Li &amp; Wijmans · NDSS · 2017</p>
+            <p>Uses operating-system and hardware features to link the same physical device across browsers, reaching <strong>99.24% identification accuracy</strong> in its reported evaluation.</p>
+          </div>
+        </article>
+      </div>
+    </div>
+  );
+}
+
+function BrowserParametersVisual() {
+  const parameters = [
+    ['User agent', 'HTTP header'],
+    ['Accept', 'HTTP header'],
+    ['Content encoding', 'HTTP header'],
+    ['Content language', 'HTTP header'],
+    ['List of plugins', 'JavaScript'],
+    ['Cookies enabled', 'JavaScript'],
+    ['Use of local/session storage', 'JavaScript'],
+    ['Timezone', 'JavaScript'],
+    ['Screen resolution and color depth', 'JavaScript'],
+    ['List of fonts', 'Flash plugin'],
+    ['List of HTTP headers', 'HTTP headers'],
+    ['Platform', 'JavaScript'],
+    ['Do Not Track', 'JavaScript'],
+    ['Canvas', 'JavaScript'],
+    ['WebGL vendor', 'JavaScript'],
+    ['WebGL renderer', 'JavaScript'],
+    ['Use of an ad blocker', 'JavaScript'],
+  ];
+
+  return (
+    <div className="ms-vichanshu-layout ms-parameters-layout" aria-label="Browser fingerprint parameters">
+      <header className="ms-vichanshu-heading">
+        <div className="ms-kicker"><span>05</span><span className="ms-kicker-dot" /><span>Vichanshu</span></div>
+        <h2>Browser Fingerprinting Parameters</h2>
+        <p>Signals available to a website span request headers, browser state, display configuration, and rendering behavior.</p>
+      </header>
+      <div className="ms-parameters-content">
+        <figure className="ms-parameters-figure">
+          <Image src="/evidence/browser-fingerprint-parameters.png" width={994} height={818} alt="Table of browser measurements used for browser fingerprinting" />
+        </figure>
+        <section className="ms-parameter-list" aria-label="Parameter groups">
+          {parameters.map(([label, detail], index) => (
+            <div key={label} className="ms-parameter-row"><span>{String(index + 1).padStart(2, '0')}</span><p><strong>{label}</strong>{detail}</p></div>
+          ))}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function CanvasFingerprintingVisual() {
+  return (
+    <div className="ms-vichanshu-layout ms-canvas-layout" aria-label="Canvas fingerprinting layers and visual differences">
+      <header className="ms-vichanshu-heading">
+        <div className="ms-kicker"><span>06</span><span className="ms-kicker-dot" /><span>Vichanshu</span></div>
+        <h2>Canvas Fingerprinting</h2>
+        <p>Canvas output captures subtle differences in the browser&apos;s graphics stack and device environment.</p>
+      </header>
+      <div className="ms-canvas-content">
+        <section className="ms-canvas-copy">
+          <ol className="ms-canvas-layers">
+            <li><span>01</span><div><strong>Font probing</strong><p>Text metrics and glyph rasterization differ across installed fonts and rendering engines.</p></div></li>
+            <li><span>02</span><div><strong>Device &amp; OS rendering</strong><p>Browser, operating-system, and graphics settings change the final pixel output.</p></div></li>
+            <li><span>03</span><div><strong>Hardware graphics</strong><p>GPU and driver behavior influence antialiasing, color, and canvas drawing results.</p></div></li>
+          </ol>
+          <aside className="ms-canvas-hash"><span>Combined hash</span><p>These independent rendering traces combine into a compact device signal for fingerprint comparison.</p></aside>
+        </section>
+        <div className="ms-canvas-evidence">
+          <figure><Image src="/evidence/canvas-emoji-differences.png" width={636} height={555} alt="Emoji rendering differences across operating systems and devices" /></figure>
+          <figure><Image src="/evidence/canvas-font-differences.png" width={1011} height={184} alt="Text rendering differences in canvas output" /></figure>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CrossBrowserDirectionVisual() {
+  return (
+    <div className="ms-vichanshu-layout ms-cross-browser-layout" aria-label="Transition from single-browser to cross-browser fingerprinting">
+      <header className="ms-vichanshu-heading">
+        <div className="ms-kicker"><span>07</span><span className="ms-kicker-dot" /><span>Vichanshu</span></div>
+        <h2>Going Toward Cross-Browser</h2>
+        <p>Move from browser-specific output toward the device and operating-system signals that persist when the browser changes.</p>
+      </header>
+      <div className="ms-cross-browser-flow">
+        <section className="ms-fingerprint-stage">
+          <div className="ms-fingerprint-orbit"><span>OS &amp; hardware<br />level</span><div className="ms-browser-core">Browser</div></div>
+          <p>Single-browser fingerprinting</p>
+        </section>
+        <div className="ms-cross-arrow" aria-hidden="true">→</div>
+        <section className="ms-fingerprint-stage ms-cross-stage">
+          <div className="ms-fingerprint-orbit"><span>OS &amp; hardware<br />level</span><div className="ms-device-core" /></div>
+          <p>Cross-browser fingerprinting</p>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function NdssParametersVisual({ secondHalf = false }: { secondHalf?: boolean }) {
+  const entries = secondHalf
+    ? [
+        {
+          number: '03',
+          title: 'Persistent OS-Level Baselines',
+          copy: 'Screen resolution and timezone form a persistent operating-system baseline for the cross-browser task mask.',
+        },
+        {
+          number: '04',
+          title: 'WebGL Rendering Tasks',
+          copy: 'Instead of only reading a GPU name, the method runs 3D rendering tasks. GPU-specific timing and pixel behavior provide a stable hardware signal across browsers.',
+        },
+      ]
+    : [
+        {
+          number: '01',
+          title: 'Audio Processing',
+          copy: 'The AudioContext API processes complex waves. Differences in clipping and processing speed expose a signature of the sound hardware and CPU that remains stable across browsers.',
+        },
+        {
+          number: '02',
+          title: 'Hardware Concurrency',
+          copy: 'The browser exposes logical CPU core count, while task scheduling and execution timing provide a hardware-level benchmark that does not depend on the browser engine.',
+        },
+      ];
+
+  return (
+    <div className="ms-vichanshu-layout ms-ndss-layout" aria-label="NDSS cross-browser fingerprinting parameters">
+      <header className="ms-vichanshu-heading">
+        <div className="ms-kicker"><span>{secondHalf ? '09' : '08'}</span><span className="ms-kicker-dot" /><span>Vichanshu</span></div>
+        <h2>NDSS Parameters</h2>
+        <p>Cross-browser matching relies on browser-independent hardware and operating-system evidence.</p>
+      </header>
+      <div className="vsh-flaws-focus ms-ndss-panels">
+        {entries.map((entry) => (
+          <section key={entry.number} className="vsh-flaw-section">
+            <div className="vsh-flaw-heading"><span>{entry.number}</span><h3>{entry.title}</h3></div>
+            <p className="vsh-flaw-formula">Cross-browser signal</p>
+            <ul className="vsh-flaw-points"><li>{entry.copy}</li></ul>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ResearchGapLimitsVisual() {
+  const gaps = [
+    ['The uniqueness ceiling', 'Current literature has not demonstrated 100% absolute device uniqueness at global scale, even with advanced fingerprinting methods.'],
+    ['Standardized hardware and privacy defenses', 'Mass-produced devices share similar components, while browser privacy protections can reduce or sandbox client-side fingerprinting signals.'],
+    ['Evasion and constrained datasets', 'Hardware-level tracking often relies on limited datasets and can be weakened by tools that randomize Canvas or WebGL rendering output.'],
+  ];
+
+  return (
+    <div className="ms-vichanshu-layout ms-gap-layout" aria-label="Research gap: the limits of absolute device uniqueness">
+      <header className="ms-vichanshu-heading">
+        <div className="ms-kicker"><span>10</span><span className="ms-kicker-dot" /><span>Vichanshu</span></div>
+        <h2>Research Gap</h2>
+        <p>Browser fingerprints provide useful evidence, but no single client-side method can guarantee a unique identity in every setting.</p>
+      </header>
+      <div className="ms-gap-statements">
+        {gaps.map(([title, copy], index) => (
+          <article key={title} className="ms-gap-statement">
+            <span>{String(index + 1).padStart(2, '0')}</span>
+            <div><h3>{title}</h3><p>{copy}</p></div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   return (
     <Deck>
@@ -568,7 +764,7 @@ export default function Home() {
         <div className="ms-midsem-cover-layout">
           <div className="ms-midsem-cover-main">
             <p className="ms-midsem-cover-kicker">Midsem Presentation</p>
-            <h1>VPN &amp; <em>Browser Fingerprinting</em></h1>
+            <h1>VPN Detection Using <em>Browser Fingerprinting</em></h1>
             <p className="ms-midsem-cover-topic">Finding device uniqueness through browser-observed signals</p>
           </div>
 
@@ -669,6 +865,34 @@ export default function Home() {
               </div>
             </Slide>
           );
+        }
+
+        if (item.presenter === 'Vichanshu' && item.title === 'Literature Review Overview') {
+          return <Slide key={`${item.presenter}-${item.title}`} nav={item.title} notes={item.brief} className="ms-slide ms-owner-vichanshu"><LiteratureReviewVisual /></Slide>;
+        }
+
+        if (item.presenter === 'Vichanshu' && item.title === 'Paper 1: Browser Fingerprinting') {
+          return <Slide key={`${item.presenter}-${item.title}`} nav={item.title} notes={item.brief} className="ms-slide ms-owner-vichanshu"><BrowserParametersVisual /></Slide>;
+        }
+
+        if (item.presenter === 'Vichanshu' && item.title === 'Paper 2: Cross-Browser Device Identification') {
+          return <Slide key={`${item.presenter}-${item.title}`} nav={item.title} notes={item.brief} className="ms-slide ms-owner-vichanshu"><CanvasFingerprintingVisual /></Slide>;
+        }
+
+        if (item.presenter === 'Vichanshu' && item.title === 'Paper 3: Server-Side VPN Detection') {
+          return <Slide key={`${item.presenter}-${item.title}`} nav={item.title} notes={item.brief} className="ms-slide ms-owner-vichanshu"><CrossBrowserDirectionVisual /></Slide>;
+        }
+
+        if (item.presenter === 'Vichanshu' && item.title === 'Literature Review Synthesis') {
+          return <Slide key={`${item.presenter}-${item.title}`} nav={item.title} notes={item.brief} className="ms-slide ms-owner-vichanshu"><NdssParametersVisual /></Slide>;
+        }
+
+        if (item.presenter === 'Vichanshu' && item.title === 'Research Gap') {
+          return <Slide key={`${item.presenter}-${item.title}`} nav={item.title} notes={item.brief} className="ms-slide ms-owner-vichanshu"><NdssParametersVisual secondHalf /></Slide>;
+        }
+
+        if (item.presenter === 'Vichanshu' && item.title === 'Limits of Absolute Device Uniqueness') {
+          return <Slide key={`${item.presenter}-${item.title}`} nav={item.title} notes={item.brief} className="ms-slide ms-owner-vichanshu"><ResearchGapLimitsVisual /></Slide>;
         }
 
         if (item.presenter === 'Vishwas' && item.title === 'Current System Flaws and Limitations') {
