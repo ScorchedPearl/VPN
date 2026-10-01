@@ -13,9 +13,6 @@ body,
   margin: 0;
 }
 html {
-  color-scheme: dark;
-} /* set "light" for light decks */
-html[data-theme='light'] {
   color-scheme: light;
 }
 body {
