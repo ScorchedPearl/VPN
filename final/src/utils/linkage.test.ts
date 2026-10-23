@@ -273,8 +273,13 @@ test("calibration stays bounded on perfectly separable data and never inverts st
   assert.ok(genuine.posterior > 0.99, `strong evidence must stay strong after calibration (${genuine.posterior})`);
 });
 
-function androidScan(label: string, agent: string, browser: "Chrome" | "Brave", hintedModel: string, chromium: number): ResearchObservation {
-  const base = observe({ ...makeDevice(700), label, os: "Android", screen: [1080, 2400], gpu: ["arm", "mali", "g68"] }, "Chrome", chromium);
+/** One physical phone: generate it once and pass it to every scan of it. */
+function phone(index: number): Device {
+  return { ...makeDevice(index), os: "Android", screen: [1080, 2400], gpu: ["arm", "mali", "g68"] };
+}
+
+function androidScan(device: Device, label: string, agent: string, browser: "Chrome" | "Brave", hintedModel: string, chromium: number): ResearchObservation {
+  const base = observe({ ...device, label }, "Chrome", chromium);
   const fingerprint = structuredClone(base.fingerprint);
   fingerprint.userAgent = agent;
   fingerprint.browserFamily = browser;
@@ -287,8 +292,9 @@ function androidScan(label: string, agent: string, browser: "Chrome" | "Brave", 
 }
 
 test("phone-maker browsers are recognised and an old bundled Chromium is not treated as the same engine", () => {
-  const heytap = androidScan("sujal", "Mozilla/5.0 (Linux; U; Android 14; en-in; RMX3392 Build/UKQ1.230924.001) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.5790.168 Mobile Safari/537.36 HeyTapBrowser/45.13", "Chrome", "", 115);
-  const chrome = androidScan("sujal", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36", "Chrome", "RMX3392", 155);
+  const device = phone(700);
+  const heytap = androidScan(device, "sujal", "Mozilla/5.0 (Linux; U; Android 14; en-in; RMX3392 Build/UKQ1.230924.001) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.5790.168 Mobile Safari/537.36 HeyTapBrowser/45.13", "Chrome", "", 115);
+  const chrome = androidScan(device, "sujal", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36", "Chrome", "RMX3392", 155);
   const result = linkObservations(heytap, chrome, trainLinkageModel([]));
   assert.equal(browserOf(heytap.fingerprint), "HeyTap");
   assert.equal(result.context, "cross-browser", "Chromium 115 vs 155 renders differently");
@@ -298,8 +304,8 @@ test("phone-maker browsers are recognised and an old bundled Chromium is not tre
 });
 
 test("a different phone model is decisive even when the hardware looks the same", () => {
-  const first = androidScan("sudhanshu", "Mozilla/5.0 (Linux; U; Android 16; en-in; RMX3867 Build/BP2A.250605.015) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.5790.168 Mobile Safari/537.36 HeyTapBrowser/45.13", "Chrome", "", 115);
-  const second = androidScan("akshat", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36", "Chrome", "RMX3868", 155);
+  const first = androidScan(phone(701), "sudhanshu", "Mozilla/5.0 (Linux; U; Android 16; en-in; RMX3867 Build/BP2A.250605.015) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.5790.168 Mobile Safari/537.36 HeyTapBrowser/45.13", "Chrome", "", 115);
+  const second = androidScan(phone(702), "akshat", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36", "Chrome", "RMX3868", 155);
   const result = linkObservations(first, second, trainLinkageModel([]));
   assert.equal(result.features.find((item) => item.id === "device-model")?.bin, "different");
   assert.ok(result.posterior < 0.2, `posterior ${result.posterior}`);
@@ -334,4 +340,60 @@ test("same-device sets recover each device and tighten as the threshold rises", 
   assert.ok(groupSameDevice(pairs, 0.999999).length >= at85.length);
   // Every scan lands in exactly one set.
   assert.equal(at85.reduce((sum, set) => sum + set.observationIds.length, 0), observations.length);
+});
+
+/* Brave and same-model phones (October 2026 study, second round). */
+
+test("Brave's randomized screen size and hidden fonts no longer split a laptop", () => {
+  const device = { ...makeDevice(900), os: "Windows", screen: [1920, 1080] as [number, number] };
+  const edge = observe(device, "Chrome", 1);
+  edge.fingerprint.screen.pixelRatioBucket = 1.25;
+  edge.fingerprint.screen.width = 1536;
+  edge.fingerprint.screen.height = 864;
+  const brave = observe(device, "Chrome", 2, { brave: true });
+  brave.fingerprint.screen.width = 2100; // Brave reports a randomized screen
+  brave.fingerprint.screen.height = 1313;
+  brave.fingerprint.modern!.fonts.detected = edge.fingerprint.modern!.fonts.detected.filter((_, index) => index % 4 !== 0);
+  const result = linkObservations(edge, brave, trainLinkageModel([]));
+  assert.equal(result.features.find((item) => item.id === "screen")?.status, "protected");
+  assert.equal(result.features.find((item) => item.id === "fonts")?.bin, "exact", "Brave's fonts are a subset of the real list");
+  assert.ok(result.posterior > 0.5, `posterior ${result.posterior}`);
+});
+
+test("two people with the same phone model are told apart by their settings, not linked by the model", () => {
+  const krishPhone = { ...phone(910), timezone: "Asia/Kolkata", ip: "77.111.244.1" };
+  const anshPhone = { ...phone(911), timezone: "Asia/Kolkata", ip: "152.59.185.1" };
+  const chrome = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36";
+  const krish = androidScan(krishPhone, "krish", chrome, "Chrome", "moto g85 5G", 155);
+  const krishAgain = androidScan(krishPhone, "krish", chrome, "Chrome", "moto g85 5G", 155);
+  const ansh = androidScan(anshPhone, "ansh", chrome, "Chrome", "moto g85 5G", 155);
+  // Same model and firmware render identically; personal settings differ.
+  ansh.fingerprint.modern!.intl.locale = "en-US";
+  ansh.fingerprint.modern!.voices = { status: "collected", local: ["Albanian|sq_AL"], remoteCount: 0 };
+  krish.fingerprint.modern!.voices = krishAgain.fingerprint.modern!.voices = { status: "collected", local: ["Hindi|hi_IN", "Bengali|bn_IN"], remoteCount: 0 };
+  const model = trainLinkageModel([]);
+  const twins = linkObservations(krish, ansh, model);
+  const same = linkObservations(krish, krishAgain, model);
+  assert.equal(twins.features.find((item) => item.id === "canvas-hash")?.status, "by-model", "identical-model rendering is not recounted");
+  assert.ok(twins.posterior < 0.5, `twin phones ${twins.posterior}`);
+  assert.ok(same.posterior > 0.9, `same phone ${same.posterior}`);
+});
+
+test("a different phone model is decisive, not capped away with OS evidence", () => {
+  const chrome = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36";
+  const s23 = androidScan(phone(920), "kshitij", chrome, "Chrome", "SM-S911B", 155);
+  const s24 = androidScan(phone(920), "kunal", chrome, "Chrome", "SM-S921E", 155);
+  const result = linkObservations(s23, s24, trainLinkageModel([]));
+  const modelEvidence = result.families.find((family) => family.family === "model")?.capped ?? 0;
+  assert.ok(modelEvidence < -4, `model evidence ${modelEvidence}`);
+  assert.equal(result.verdict, "different-device", `posterior ${result.posterior}`);
+});
+
+test("Brave on a phone hides the model, so matching hardware alone cannot claim the same device", () => {
+  const chrome = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36";
+  const brave = androidScan(phone(930), "ved", chrome, "Brave", "", 155);
+  brave.fingerprint.modern!.protections.brave = true;
+  const other = androidScan({ ...phone(931), timezone: phone(930).timezone }, "sujal", chrome, "Chrome", "RMX3392", 155);
+  const result = linkObservations(brave, other, trainLinkageModel([]));
+  assert.ok(result.posterior <= 0.5, `posterior ${result.posterior}`);
 });

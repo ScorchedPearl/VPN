@@ -31,7 +31,7 @@ export const LINKAGE_MODEL_VERSION = "linkage-nb-2026.10";
 export type LinkScope = "device" | "engine" | "browser";
 export type ComparisonContext = "same-browser" | "same-engine" | "cross-browser";
 export type LinkFamily =
-  | "platform" | "hardware" | "display" | "gpu" | "gpu-timing" | "os-assets"
+  | "platform" | "model" | "hardware" | "display" | "gpu" | "gpu-timing" | "os-assets"
   | "locale" | "audio-hw" | "engine-render" | "browser-config" | "network";
 
 type Value = string | number | boolean | string[] | number[];
@@ -46,6 +46,8 @@ const LLR_LIMIT = 6;
 
 export const FAMILY_CAPS: Record<LinkFamily, { positive: number; negative: number }> = {
   platform: { positive: 2.5, negative: -6 },
+  // Its own group so a different phone model is never capped away by OS evidence.
+  model: { positive: 3.5, negative: -9 },
   hardware: { positive: 2.5, negative: -5 },
   display: { positive: 3, negative: -4.5 },
   gpu: { positive: 3.5, negative: -5 },
@@ -60,6 +62,7 @@ export const FAMILY_CAPS: Record<LinkFamily, { positive: number; negative: numbe
 
 export const FAMILY_LABELS: Record<LinkFamily, string> = {
   platform: "OS & platform",
+  model: "Device model",
   hardware: "CPU, memory, input",
   display: "Display",
   gpu: "GPU identity",
@@ -99,6 +102,15 @@ interface FeatureSpec {
    * evidence instead of losing every OS-level signal at once.
    */
   osDependent?: boolean;
+  /**
+   * Fixed by the hardware model and its firmware (screen, GPU, rendering,
+   * system fonts). When both scans report the same phone model these match
+   * for every unit of that model, so they are not counted again on top of
+   * the model match; personal settings and timing decide instead.
+   */
+  modelDetermined?: boolean;
+  /** Comparator used instead of `compare` when either scan is Brave. */
+  braveCompare?: (a: Value, b: Value) => number | null;
   /** True when a randomizing defence makes this observation's value unreliable. */
   protectedBy?: (fingerprint: FingerprintData) => boolean;
 }
@@ -133,6 +145,21 @@ function vectorAgreement(tolerance: number) {
     if (!first.length || first.length !== second.length) return null;
     return first.filter((value, index) => Math.abs(value - second[index]) <= tolerance).length / first.length;
   };
+}
+
+/**
+ * Share of the smaller set found in the larger one. Brave hides a random
+ * subset of fonts per site, so its list is a subset of the true one.
+ */
+function containment(a: Value, b: Value): number | null {
+  const first = new Set(a as string[]);
+  const second = new Set(b as string[]);
+  const smaller = first.size <= second.size ? first : second;
+  const larger = smaller === first ? second : first;
+  if (!smaller.size) return null;
+  let shared = 0;
+  for (const item of smaller) if (larger.has(item)) shared += 1;
+  return shared / smaller.size;
 }
 
 /** Pearson correlation for timing profiles; uninformative flat profiles abstain. */
@@ -186,22 +213,25 @@ export const FEATURES: FeatureSpec[] = [
     compare: (a, b) => { const [x, y] = [a as number[], b as number[]]; return x[0] !== y[0] ? 0 : x[1] === y[1] ? 1 : 0.9; } },
   { id: "architecture", label: "CPU architecture / bitness", family: "platform", scope: "device", binary: true, stability: [0.99, 0.98, 0.98], collision: 0.5, collisionByOs: { "*": 0.85 },
     value: (o) => known(fp(o).architecture) ? `${fp(o).architecture}/${fp(o).bitness}` : null },
-  { id: "device-model", label: "Device model (hints or user agent)", family: "platform", scope: "device", binary: true, stability: [0.998, 0.995, 0.995], collision: 0.05,
+  { id: "device-model", label: "Device model (hints or user agent)", family: "model", scope: "device", binary: true, stability: [0.998, 0.995, 0.995], collision: 0.05,
     value: (o) => deviceModel(fp(o)) },
 
   // Hardware
-  { id: "cpu-cores", label: "Logical CPU cores", family: "hardware", scope: "device", binary: true, protectedBy: isBrave, stability: [0.99, 0.95, 0.85], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.6, Android: 0.4, macOS: 0.35 },
+  { id: "cpu-cores", label: "Logical CPU cores", family: "hardware", scope: "device", modelDetermined: true, binary: true, protectedBy: isBrave, stability: [0.99, 0.95, 0.85], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.6, Android: 0.4, macOS: 0.35 },
     value: (o) => orNull(fp(o).hardwareConcurrency ?? null) },
   { id: "memory", label: "Device memory bucket", family: "hardware", scope: "device", binary: true, protectedBy: isBrave, stability: [0.99, 0.97, 0.95], collision: 0.45, collisionByOs: { Android: 0.55, "*": 0.5 },
     // Chromium caps the reported value at 8 GB; some forks report 16 or 32.
     value: (o) => { const memory = fp(o).deviceMemory; return memory ? Math.min(memory, 8) : null; } },
   { id: "refresh-rate", label: "Display refresh rate", family: "hardware", scope: "device", osDependent: true, binary: true, stability: [0.9, 0.85, 0.82], collision: 0.6, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.7, macOS: 0.75 },
-    value: (o) => orNull(modern(o)?.refreshRate.hz ?? null) },
-  { id: "pointer-polling", label: "Pointer polling rate", family: "hardware", scope: "device", osDependent: true, binary: true, stability: [0.8, 0.75, 0.7], collision: 0.35,
-    value: (o) => orNull(modern(o)?.pointer.pollingHz ?? null) },
+    // Phones switch adaptively between 48/60/90/120 Hz, so only desktops count.
+    value: (o) => isMobile(fp(o)) ? null : orNull(modern(o)?.refreshRate.hz ?? null) },
+  { id: "pointer-polling", label: "Pointer polling rate", family: "hardware", scope: "device", osDependent: true, binary: false, stability: [0.8, 0.75, 0.7], collision: 0.35,
+    // Estimated rates jitter (159 vs 161 Hz is one mouse), so compare with tolerance.
+    value: (o) => orNull(modern(o)?.pointer.pollingHz ?? null),
+    compare: (a, b) => { const gap = Math.abs(Number(a) - Number(b)) / Math.max(Number(a), Number(b)); return gap <= 0.06 ? 1 : gap <= 0.15 ? 0.9 : 0; } },
 
   // Display
-  { id: "screen", label: "Physical screen resolution", family: "display", scope: "device", binary: false, stability: [0.95, 0.94, 0.92], collision: 0.12, collisionByOs: { "iOS/iPadOS": 0.3, Android: 0.15, macOS: 0.3 },
+  { id: "screen", label: "Physical screen resolution", family: "display", scope: "device", protectedBy: isBraveDesktop, modelDetermined: true, binary: false, stability: [0.95, 0.94, 0.92], collision: 0.12, collisionByOs: { "iOS/iPadOS": 0.3, Android: 0.15, macOS: 0.3 },
     // Physical pixels (CSS size × device pixel ratio), so OS display scaling
     // and browser zoom cancel out: 1536×864 at 125% is the same 1920×1080 panel.
     value: (o) => {
@@ -218,26 +248,26 @@ export const FEATURES: FeatureSpec[] = [
       if (x[2] === 1 && y[2] === 1) return 0;
       return Math.max(0, 1 - (Math.abs(x[0] - y[0]) + Math.abs(x[1] - y[1])) / 1200);
     } },
-  { id: "pixel-ratio", label: "Device pixel ratio", family: "display", scope: "device", osDependent: true, binary: false, stability: [0.9, 0.85, 0.82], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.4, macOS: 0.85 },
+  { id: "pixel-ratio", label: "Device pixel ratio", family: "display", scope: "device", modelDetermined: true, osDependent: true, binary: false, stability: [0.9, 0.85, 0.82], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.4, macOS: 0.85 },
     value: (o) => fp(o).screen.pixelRatioBucket, compare: closeness(1) },
-  { id: "screen-insets", label: "Taskbar / dock insets", family: "display", scope: "device", osDependent: true, binary: true, stability: [0.9, 0.88, 0.85], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.85, Android: 0.3, macOS: 0.4 },
+  { id: "screen-insets", label: "Taskbar / dock insets", family: "display", scope: "device", protectedBy: isBraveDesktop, osDependent: true, binary: true, stability: [0.9, 0.88, 0.85], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.85, Android: 0.3, macOS: 0.4 },
     // On phones these reflect the browser's own toolbars, not the device.
     value: (o) => { const insets = modern(o)?.screenInsets; return insets && !isMobile(fp(o)) ? [insets.horizontal, insets.vertical, insets.left, insets.top] : null; } },
-  { id: "display-profile", label: "Colour gamut, pointer, touch", family: "display", scope: "device", binary: true, stability: [0.97, 0.93, 0.9], collision: 0.3, collisionByOs: { "iOS/iPadOS": 0.85, Android: 0.5, macOS: 0.7 },
+  { id: "display-profile", label: "Colour gamut, pointer, touch", family: "display", scope: "device", modelDetermined: true, binary: true, stability: [0.97, 0.93, 0.9], collision: 0.3, collisionByOs: { "iOS/iPadOS": 0.85, Android: 0.5, macOS: 0.7 },
     // Colour depth and dynamic range are left out: they depend on the engine
     // (Chromium reports 30-bit, Safari 24; older forks lack the HDR query).
     value: (o) => fp(o).display ? [fp(o).display!.colorGamut, fp(o).display!.pointer, String(fp(o).touchPoints > 0)] : null },
 
   // GPU identity
-  { id: "gpu-family", label: "GPU vendor family", family: "gpu", scope: "device", binary: true, protectedBy: isBrave, stability: [0.99, 0.95, 0.9], collision: 0.3, collisionByOs: { "iOS/iPadOS": 0.98, macOS: 0.9, Android: 0.5 },
+  { id: "gpu-family", label: "GPU vendor family", family: "gpu", scope: "device", modelDetermined: true, binary: true, protectedBy: isBrave, stability: [0.99, 0.95, 0.9], collision: 0.3, collisionByOs: { "iOS/iPadOS": 0.98, macOS: 0.9, Android: 0.5 },
     value: (o) => orNull(fp(o).webgl.rendererFamily) },
-  { id: "gpu-renderer", label: "GPU model tokens", family: "gpu", scope: "device", osDependent: true, binary: false, stability: [0.97, 0.85, 0.7], collision: 0.08, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.4, Android: 0.3 },
+  { id: "gpu-renderer", label: "GPU model tokens", family: "gpu", scope: "device", modelDetermined: true, osDependent: true, binary: false, stability: [0.97, 0.85, 0.7], collision: 0.08, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.4, Android: 0.3 },
     value: (o) => orNull(modern(o)?.gpu.rendererTokens ?? null), compare: jaccard,
     protectedBy: (f) => Boolean(f.modern?.protections.brave || f.modern?.gpu.masked) },
-  { id: "webgpu-adapter", label: "WebGPU vendor / architecture", family: "gpu", scope: "device", binary: true, stability: [0.97, 0.9, 0.8], collision: 0.2, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.8, Android: 0.4 },
+  { id: "webgpu-adapter", label: "WebGPU vendor / architecture", family: "gpu", scope: "device", modelDetermined: true, binary: true, stability: [0.97, 0.9, 0.8], collision: 0.2, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.8, Android: 0.4 },
     value: (o) => { const gpu = modern(o)?.webgpu; return gpu?.status === "collected" && (gpu.vendor || gpu.architecture) ? `${gpu.vendor}/${gpu.architecture}` : null; },
     protectedBy: (f) => Boolean(f.modern?.protections.brave) },
-  { id: "webgpu-subgroups", label: "WebGPU subgroup sizes", family: "gpu", scope: "device", osDependent: true, binary: true, stability: [0.98, 0.9, 0.85], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.9 },
+  { id: "webgpu-subgroups", label: "WebGPU subgroup sizes", family: "gpu", scope: "device", protectedBy: isBrave, modelDetermined: true, osDependent: true, binary: true, stability: [0.98, 0.9, 0.85], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.9 },
     value: (o) => { const gpu = modern(o)?.webgpu; return gpu?.subgroupMinSize ? [gpu.subgroupMinSize, gpu.subgroupMaxSize ?? 0] : null; } },
 
   // GPU timing (non-deterministic, weak per comparison)
@@ -247,19 +277,19 @@ export const FEATURES: FeatureSpec[] = [
     value: (o) => { const scheduling = modern(o)?.webgpu.scheduling; return scheduling?.status === "collected" ? scheduling.profile : null; }, compare: profileCorrelation },
 
   // OS assets
-  { id: "fonts", label: "Installed font inventory", family: "os-assets", scope: "device", osDependent: true, binary: false, stability: [0.85, 0.7, 0.6], collision: 0.08, collisionByOs: { "iOS/iPadOS": 0.85, Android: 0.5, macOS: 0.3 },
-    value: (o) => modern(o)?.fonts.detected.length ? modern(o)!.fonts.detected : null, compare: jaccard },
-  { id: "legacy-fonts", label: "Core font probe (schema 4)", family: "os-assets", scope: "device", osDependent: true, binary: false, stability: [0.9, 0.75, 0.65], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.95, Android: 0.7, macOS: 0.6 },
-    value: (o) => orNull(fp(o).fonts), compare: jaccard },
-  { id: "emoji-version", label: "Emoji font release", family: "os-assets", scope: "device", osDependent: true, binary: true, stability: [0.97, 0.92, 0.85], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.6, macOS: 0.8 },
+  { id: "fonts", label: "Installed font inventory", family: "os-assets", scope: "device", modelDetermined: true, osDependent: true, binary: false, stability: [0.85, 0.7, 0.6], collision: 0.08, collisionByOs: { "iOS/iPadOS": 0.85, Android: 0.5, macOS: 0.3 },
+    value: (o) => modern(o)?.fonts.detected.length ? modern(o)!.fonts.detected : null, compare: jaccard, braveCompare: containment },
+  { id: "legacy-fonts", label: "Core font probe (schema 4)", family: "os-assets", scope: "device", modelDetermined: true, osDependent: true, binary: false, stability: [0.9, 0.75, 0.65], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.95, Android: 0.7, macOS: 0.6 },
+    value: (o) => orNull(fp(o).fonts), compare: jaccard, braveCompare: containment },
+  { id: "emoji-version", label: "Emoji font release", family: "os-assets", scope: "device", modelDetermined: true, osDependent: true, binary: true, stability: [0.97, 0.92, 0.85], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.6, macOS: 0.8 },
     value: (o) => orNull(modern(o)?.emoji.maxVersion ?? null) },
-  { id: "emoji-metrics", label: "Emoji glyph metrics", family: "os-assets", scope: "device", osDependent: true, binary: false, stability: [0.95, 0.8, 0.55], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.9, Android: 0.6, macOS: 0.9 },
+  { id: "emoji-metrics", label: "Emoji glyph metrics", family: "os-assets", scope: "device", modelDetermined: true, osDependent: true, binary: false, stability: [0.95, 0.8, 0.55], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.9, Android: 0.6, macOS: 0.9 },
     value: (o) => orNull(modern(o)?.emoji.widths ?? null), compare: vectorAgreement(0.5) },
-  { id: "writing-systems", label: "Writing-system glyph support", family: "os-assets", scope: "device", osDependent: true, binary: false, stability: [0.95, 0.85, 0.75], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.95, Android: 0.8, macOS: 0.95 },
+  { id: "writing-systems", label: "Writing-system glyph support", family: "os-assets", scope: "device", modelDetermined: true, osDependent: true, binary: false, stability: [0.95, 0.85, 0.75], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.95, Android: 0.8, macOS: 0.95 },
     value: (o) => orNull(fp(o).ndss2017?.writingSystems.supported ?? null), compare: jaccard },
   { id: "local-voices", label: "Local speech voices", family: "os-assets", scope: "device", osDependent: true, binary: false, stability: [0.95, 0.75, 0.6], collision: 0.2, collisionByOs: { "iOS/iPadOS": 0.5, Android: 0.4, macOS: 0.4 },
     value: (o) => orNull(modern(o)?.voices.local ?? null), compare: jaccard },
-  { id: "generic-fonts", label: "Default generic font metrics", family: "os-assets", scope: "engine", osDependent: true, binary: false, stability: [0.95, 0.75, 0.5], collision: 0.3, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.5, macOS: 0.7 },
+  { id: "generic-fonts", label: "Default generic font metrics", family: "os-assets", scope: "engine", modelDetermined: true, osDependent: true, binary: false, stability: [0.95, 0.75, 0.5], collision: 0.3, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.5, macOS: 0.7 },
     value: (o) => { const widths = modern(o)?.systemStyle.genericWidths; return widths && Object.keys(widths).length ? Object.keys(widths).sort().map((key) => widths[key]) : null; },
     compare: vectorAgreement(0.5) },
 
@@ -272,7 +302,7 @@ export const FEATURES: FeatureSpec[] = [
     value: (o) => { const intl = modern(o)?.intl; return intl ? [intl.locale, intl.calendar, intl.numberingSystem, intl.hourCycle] : null; } },
 
   // Audio hardware
-  { id: "audio-destination", label: "Audio output sample rate / channels", family: "audio-hw", scope: "device", osDependent: true, binary: true, stability: [0.97, 0.85, 0.8], collision: 0.5, collisionByOs: { "iOS/iPadOS": 0.9, macOS: 0.7 },
+  { id: "audio-destination", label: "Audio output sample rate / channels", family: "audio-hw", scope: "device", modelDetermined: true, osDependent: true, binary: true, stability: [0.97, 0.85, 0.8], collision: 0.5, collisionByOs: { "iOS/iPadOS": 0.9, macOS: 0.7 },
     value: (o) => { const destination = fp(o).ndss2017?.audioDestination; return destination?.sampleRate ? [destination.sampleRate, destination.maxChannelCount ?? -1] : null; } },
   { id: "media-devices", label: "Media device counts", family: "audio-hw", scope: "browser", binary: true, stability: [0.9, 0, 0], collision: 0.5, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.6 },
     // Browsers decide how many devices to reveal before permission (Chrome
@@ -280,21 +310,21 @@ export const FEATURES: FeatureSpec[] = [
     value: (o) => { const devices = modern(o)?.mediaDevices; return devices ? [devices.audioinput, devices.videoinput, devices.audiooutput] : null; } },
 
   // Engine rendering (same engine only)
-  { id: "canvas-hash", label: "Canvas rendering hash", family: "engine-render", scope: "engine", binary: true, stability: [0.92, 0.7, 0], collision: 0.03, collisionByOs: { "iOS/iPadOS": 0.5, macOS: 0.3, Android: 0.2 },
+  { id: "canvas-hash", label: "Canvas rendering hash", family: "engine-render", scope: "engine", modelDetermined: true, binary: true, stability: [0.92, 0.7, 0], collision: 0.03, collisionByOs: { "iOS/iPadOS": 0.5, macOS: 0.3, Android: 0.2 },
     value: (o) => orNull(fp(o).canvas.hash), protectedBy: (f) => Boolean(f.modern?.protections.canvasNoise) || f.canvas.repeatable === false },
-  { id: "canvas-grid", label: "Noise-tolerant canvas grid", family: "engine-render", scope: "engine", binary: false, stability: [0.95, 0.75, 0], collision: 0.15, collisionByOs: { "iOS/iPadOS": 0.7, macOS: 0.5, Android: 0.4 },
+  { id: "canvas-grid", label: "Noise-tolerant canvas grid", family: "engine-render", scope: "engine", modelDetermined: true, binary: false, stability: [0.95, 0.75, 0], collision: 0.15, collisionByOs: { "iOS/iPadOS": 0.7, macOS: 0.5, Android: 0.4 },
     value: (o) => orNull(modern(o)?.canvasRobust.grid ?? null), compare: vectorAgreement(1.5) },
-  { id: "webgl-params", label: "WebGL parameters", family: "engine-render", scope: "engine", binary: true, stability: [0.95, 0.8, 0], collision: 0.08, collisionByOs: { "iOS/iPadOS": 0.8, macOS: 0.4, Android: 0.3 },
+  { id: "webgl-params", label: "WebGL parameters", family: "engine-render", scope: "engine", modelDetermined: true, binary: true, stability: [0.95, 0.8, 0], collision: 0.08, collisionByOs: { "iOS/iPadOS": 0.8, macOS: 0.4, Android: 0.3 },
     value: (o) => orNull(fp(o).webgl.parameterHash), protectedBy: (f) => Boolean(f.modern?.protections.brave) },
-  { id: "webgl-render", label: "WebGL clear-colour render", family: "engine-render", scope: "engine", binary: true, stability: [0.97, 0.9, 0], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.9 },
+  { id: "webgl-render", label: "WebGL clear-colour render", family: "engine-render", scope: "engine", modelDetermined: true, binary: true, stability: [0.97, 0.9, 0], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.9 },
     value: (o) => orNull(fp(o).webgl.renderHash ?? null) },
-  { id: "audio-hash", label: "Audio DSP hash", family: "engine-render", scope: "engine", binary: true, stability: [0.92, 0.6, 0], collision: 0.05, collisionByOs: { "iOS/iPadOS": 0.7, macOS: 0.5, Android: 0.3 },
+  { id: "audio-hash", label: "Audio DSP hash", family: "engine-render", scope: "engine", modelDetermined: true, binary: true, stability: [0.92, 0.6, 0], collision: 0.05, collisionByOs: { "iOS/iPadOS": 0.7, macOS: 0.5, Android: 0.3 },
     value: (o) => fp(o).audio?.status === "collected" ? fp(o).audio!.hash : null, protectedBy: (f) => Boolean(f.modern?.protections.audioNoise) },
-  { id: "audio-summary", label: "Audio DSP summary (rounded)", family: "engine-render", scope: "engine", binary: true, stability: [0.95, 0.6, 0], collision: 0.08, collisionByOs: { "iOS/iPadOS": 0.7, macOS: 0.5, Android: 0.3 },
+  { id: "audio-summary", label: "Audio DSP summary (rounded)", family: "engine-render", scope: "engine", modelDetermined: true, binary: true, stability: [0.95, 0.6, 0], collision: 0.08, collisionByOs: { "iOS/iPadOS": 0.7, macOS: 0.5, Android: 0.3 },
     value: (o) => orNull(modern(o)?.audioRobust.summary ?? null), protectedBy: (f) => Boolean(f.modern?.protections.audioNoise) },
-  { id: "math", label: "JS math library", family: "engine-render", scope: "engine", binary: true, stability: [0.99, 0.9, 0], collision: 0.6, collisionByOs: { "iOS/iPadOS": 0.8, macOS: 0.8, Android: 0.8 },
+  { id: "math", label: "JS math library", family: "engine-render", scope: "engine", modelDetermined: true, binary: true, stability: [0.99, 0.9, 0], collision: 0.6, collisionByOs: { "iOS/iPadOS": 0.8, macOS: 0.8, Android: 0.8 },
     value: (o) => orNull(modern(o)?.math.hash ?? null) },
-  { id: "ndss-tasks", label: "NDSS 2017 task hashes", family: "engine-render", scope: "engine", binary: false, stability: [0.9, 0.6, 0], collision: 0.1, collisionByOs: { "iOS/iPadOS": 0.6, macOS: 0.4, Android: 0.3 },
+  { id: "ndss-tasks", label: "NDSS 2017 task hashes", family: "engine-render", scope: "engine", protectedBy: isBrave, modelDetermined: true, binary: false, stability: [0.9, 0.6, 0], collision: 0.1, collisionByOs: { "iOS/iPadOS": 0.6, macOS: 0.4, Android: 0.3 },
     value: (o) => { const tasks = fp(o).ndss2017?.tasks.filter((task) => task.status === "collected"); return tasks?.length ? tasks.map((task) => `${task.id}:${task.hash.slice(0, 16)}`) : null; },
     compare: jaccard },
 
@@ -314,6 +344,8 @@ export const FEATURES: FeatureSpec[] = [
 ];
 
 const FEATURE_BY_ID = new Map(FEATURES.map((spec) => [spec.id, spec]));
+const DEVICE_MODEL_INDEX = FEATURES.findIndex((spec) => spec.id === "device-model");
+const HARDWARE_FAMILIES = new Set<LinkFamily>(["hardware", "display", "gpu", "platform"]);
 
 /**
  * Engines disagree on IANA aliases: Chromium reports "Asia/Calcutta" where
@@ -376,6 +408,11 @@ const UA_FORKS: Array<[RegExp, string]> = [
   [/OPR\/|OPT\//, "Opera"], [/Edg(?:A|iOS)?\//, "Edge"], [/Vivaldi\//, "Vivaldi"], [/DuckDuckGo\//, "DuckDuckGo"],
   [/; wv\)/, "Android WebView"],
 ];
+
+/** Brave on desktop also reports a randomized screen size and insets. */
+function isBraveDesktop(fingerprint: FingerprintData): boolean {
+  return isBrave(fingerprint) && !isMobile(fingerprint);
+}
 
 export function browserOf(fingerprint: FingerprintData): string {
   if (isBrave(fingerprint)) return "Brave";
@@ -456,7 +493,7 @@ export interface LinkageFeature {
   id: string;
   label: string;
   family: LinkFamily;
-  status: "used" | "unavailable" | "protected" | "out-of-scope";
+  status: "used" | "unavailable" | "protected" | "out-of-scope" | "by-model";
   similarity: number | null;
   bin: (typeof BIN_NAMES)[number] | null;
   logLikelihoodRatio: number;
@@ -544,7 +581,11 @@ function extract(observation: ResearchObservation): Extracted {
 interface PairBins {
   context: ComparisonContext;
   stratum: OsStratum | null;
-  /** -1 unavailable, -2 protected, -3 out of scope, otherwise the bin index. */
+  /** Both scans are phones or tablets. */
+  mobile: boolean;
+  /** Hardware-fixed signals are grouped and capped like a model match (phones, or different OSes). */
+  hardwareOnly: boolean;
+  /** -1 unavailable, -2 protected, -3 out of scope, -4 settled by the model name, otherwise the bin index. */
   bins: Int8Array;
   similarities: Float32Array;
 }
@@ -552,6 +593,14 @@ interface PairBins {
 function comparePair(a: Extracted, b: Extracted): PairBins {
   const context = comparisonContext(a.observation.fingerprint, b.observation.fingerprint);
   const sameOs = a.observation.fingerprint.osFamily === b.observation.fingerprint.osFamily;
+  // When both scans name their phone model, that name settles the hardware
+  // question (same or different) and the signals it fixes are not recounted.
+  const bothModels = a.values[DEVICE_MODEL_INDEX] !== null && b.values[DEVICE_MODEL_INDEX] !== null;
+  const mobile = isMobile(a.observation.fingerprint) && isMobile(b.observation.fingerprint);
+  // Across operating systems only hardware is comparable, and matching specs
+  // mean "same configuration", not "same unit" (dual-boot vs identical laptops).
+  const hardwareOnly = mobile || !sameOs;
+  const brave = isBrave(a.observation.fingerprint) || isBrave(b.observation.fingerprint);
   const bins = new Int8Array(FEATURES.length);
   const similarities = new Float32Array(FEATURES.length);
   FEATURES.forEach((spec, index) => {
@@ -559,16 +608,17 @@ function comparePair(a: Extracted, b: Extracted): PairBins {
     if (!eligible(spec, context)) { bins[index] = -3; return; }
     // Rendering and OS-chosen values only mean something on the same OS.
     if (!sameOs && (spec.osDependent || spec.scope !== "device")) { bins[index] = -3; return; }
+    if (bothModels && spec.modelDetermined) { bins[index] = -4; return; }
     const first = a.values[index];
     const second = b.values[index];
     if (first === null || second === null) { bins[index] = -1; return; }
     if (a.protectedFlags[index] || b.protectedFlags[index]) { bins[index] = -2; return; }
-    const similarity = (spec.compare || exact)(first, second);
+    const similarity = ((brave && spec.braveCompare) || spec.compare || exact)(first, second);
     if (similarity === null || !Number.isFinite(similarity)) { bins[index] = -1; return; }
     similarities[index] = similarity;
     bins[index] = binOf(similarity);
   });
-  return { context, stratum: stratumOf(a.observation.fingerprint, b.observation.fingerprint), bins, similarities };
+  return { context, stratum: stratumOf(a.observation.fingerprint, b.observation.fingerprint), mobile, hardwareOnly, bins, similarities };
 }
 
 /** Deterministic pseudo-random pair sampling so evaluations are reproducible. */
@@ -652,7 +702,13 @@ function aggregate(pair: PairBins, counts: Record<string, FeatureCounts>) {
     const featureCounts = counts[spec.id] || emptyCounts();
     const llr = featureLlr(spec, pair.context, pair.stratum, bin, featureCounts);
     llrs[index] = llr;
-    raw.set(spec.family, (raw.get(spec.family) || 0) + llr);
+    // Model-determined signals on phones, or hardware compared across OSes,
+    // only identify a configuration, so together they count at most as much
+    // as a matching model name.
+    // The OS itself stays outside the group: a different OS is its own evidence.
+    const grouped = pair.hardwareOnly && spec.id !== "os" && (spec.modelDetermined || (!spec.osDependent && HARDWARE_FAMILIES.has(spec.family)));
+    const family = grouped ? "model" : spec.family;
+    raw.set(family, (raw.get(family) || 0) + llr);
     used += 1;
   });
   let total = 0;
@@ -662,6 +718,33 @@ function aggregate(pair: PairBins, counts: Record<string, FeatureCounts>) {
     return { family, label: FAMILY_LABELS[family], raw: value, capped };
   });
   return { total, families, llrs, used };
+}
+
+/** Too few independent signal groups to say anything about the pair. */
+function isInsufficient(comparableFamilies: number, used: number): boolean {
+  return comparableFamilies < 3 || used < 5;
+}
+
+/** Families that actively support "same device" (not merely fail to contradict it). */
+const MIN_SUPPORTING_FAMILIES = 3;
+function supportingFamilies(families: Array<{ capped: number }>): number {
+  return families.filter((family) => family.capped >= 0.25).length;
+}
+
+/**
+ * A "same device" claim needs support from several independent kinds of
+ * evidence. Screen size plus a shared mobile-carrier IP block, for example,
+ * is two weak kinds and stays at most "can't tell" (50%). A matching named
+ * phone model (e.g. "RMX3392" on both) is a specific identifier on its own,
+ * so the rule only applies when no model name matched.
+ */
+function cappedPosterior(total: number, families: Array<{ capped: number }>, model: Pick<LinkageModel, "prior" | "calibration">, namedModelMatch: boolean): number {
+  const posterior = posteriorFrom(total, model);
+  return !namedModelMatch && supportingFamilies(families) < MIN_SUPPORTING_FAMILIES ? Math.min(posterior, 0.5) : posterior;
+}
+
+function namedModelMatches(pair: PairBins): boolean {
+  return pair.bins[DEVICE_MODEL_INDEX] === 0;
 }
 
 function posteriorFrom(total: number, model: Pick<LinkageModel, "prior" | "calibration">): number {
@@ -679,12 +762,16 @@ export function linkObservations(current: ResearchObservation, previous: Researc
   const second = extract(previous);
   const pair = comparePair(first, second);
   const { total, families, llrs, used } = aggregate(pair, model.counts);
-  const posterior = posteriorFrom(total, model);
+  const posterior = cappedPosterior(total, families, model, namedModelMatches(pair));
   const comparableFamilies = families.length;
   const notes: string[] = [];
   const protections = [current, previous].flatMap((observation) => observation.fingerprint.modern?.protections.notes || []);
   if (protections.length) notes.push(...Array.from(new Set(protections)));
   if (!model.calibration) notes.push("Posterior is an uncalibrated naive-Bayes estimate until at least 25 same-device and 25 different-device labelled pairs exist.");
+  if (pair.bins.some((bin) => bin === -4)) notes.push("Both scans report their phone model, so the model name decides the hardware question; screen, GPU, rendering and system fonts are not counted again. With the same model, only personal settings, memory variant, timing and network separate two phones.");
+  else if (!pair.mobile && pair.hardwareOnly) notes.push("Different operating systems: only hardware is comparable, and matching specs can mean a dual-boot machine or two laptops of the same configuration, so together they count at most as much as a model match.");
+  else if (pair.mobile) notes.push("Phone signals fixed by the hardware model (screen, GPU, rendering, system fonts) are grouped as \"Device model\" and together count at most as much as a matching model name.");
+  if (!namedModelMatches(pair) && supportingFamilies(families) < MIN_SUPPORTING_FAMILIES) notes.push("Fewer than three independent kinds of evidence support a match, so the result is held at \"can't tell\" (50% at most).");
   if (pair.context === "cross-browser") notes.push("Cross-engine comparison: only device-scope features (hardware, OS assets, display, locale, GPU identity and timing) are used.");
 
   const features: LinkageFeature[] = FEATURES.map((spec, index) => {
@@ -693,7 +780,7 @@ export function linkObservations(current: ResearchObservation, previous: Researc
       id: spec.id,
       label: spec.label,
       family: spec.family,
-      status: bin >= 0 ? "used" : bin === -2 ? "protected" : bin === -3 ? "out-of-scope" : "unavailable",
+      status: bin >= 0 ? "used" : bin === -2 ? "protected" : bin === -3 ? "out-of-scope" : bin === -4 ? "by-model" : "unavailable",
       similarity: bin >= 0 ? Number(pair.similarities[index].toFixed(3)) : null,
       bin: bin >= 0 ? BIN_NAMES[bin] : null,
       logLikelihoodRatio: bin >= 0 ? Number(llrs[index].toFixed(3)) : 0,
@@ -701,7 +788,7 @@ export function linkObservations(current: ResearchObservation, previous: Researc
       previous: display(second.values[index]),
     };
   });
-  const insufficient = comparableFamilies < 3 || used < 5;
+  const insufficient = isInsufficient(comparableFamilies, used);
   const verdict: LinkageResult["verdict"] = insufficient
     ? "insufficient-evidence"
     : posterior >= 0.9 ? "same-device" : posterior >= 0.5 ? "probably-same" : posterior >= 0.1 ? "inconclusive" : "different-device";
@@ -958,7 +1045,10 @@ export function scoreAllPairs(observations: ResearchObservation[], model: Linkag
   const posteriors = new Array<number>(size * size).fill(1);
   for (let left = 0; left < size; left += 1) {
     for (let right = left + 1; right < size; right += 1) {
-      const posterior = posteriorFrom(aggregate(comparePair(rows[left], rows[right]), model.counts).total, model);
+      const pair = comparePair(rows[left], rows[right]);
+      const result = aggregate(pair, model.counts);
+      // Pairs without enough evidence never link, whatever their percentage.
+      const posterior = isInsufficient(result.families.length, result.used) ? 0 : cappedPosterior(result.total, result.families, model, namedModelMatches(pair));
       posteriors[left * size + right] = posterior;
       posteriors[right * size + left] = posterior;
     }
