@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+/*
+ * Warm dark palette: charcoal canvas, cream text, rust/clay accent.
+ * Tokens are CSS variables so every component shares one theme.
+ */
+:root {
+  --canvas: #262624;
+  --surface: #30302e;
+  --surface-2: #3a3a37;
+  --ink: #faf9f5;
+  --ink-2: #e5e3da;
+  --muted: #a3a199;
+  --line: #42423d;
+  --line-strong: #57564f;
+  --accent: #c8643c;
+  --accent-strong: #e08560;
+  --accent-soft: #46291d;
+  --good: #93bd8f;
+  --good-soft: #2f3a2e;
+  --warn: #dcac63;
+  --warn-soft: #403424;
+  --bad: #e3857a;
+  --bad-soft: #45302c;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: "Tiempos Headline", ui-serif, "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-mono: ui-monospace, "SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--ink-2);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+details > summary {
+  list-style: none;
+}
+
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
