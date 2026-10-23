@@ -2,20 +2,19 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Archive, ArrowLeft, BarChart3, Database, GitCompare, Laptop, Loader2, Lock, RefreshCw, Search, Table2 } from "lucide-react";
+import { Archive, ArrowLeft, BarChart3, Database, GitCompare, Layers, Loader2, Lock, RefreshCw, Search, Table2 } from "lucide-react";
 import type { ResearchObservation } from "@/utils/fingerprint";
 import type { ModelEvaluation } from "@/utils/evaluation";
 import type { ArchivedObservation } from "@/utils/research-store";
-import { linkObservations, type DeviceCluster, type LinkageEvaluation, type LinkageModel, type LinkageResult } from "@/utils/linkage";
+import { browserOf, groupSameDevice, linkObservations, scoreAllPairs, type LinkageEvaluation, type LinkageModel, type LinkageResult } from "@/utils/linkage";
 import { Card, Disclosure, DivergingBar, Empty, Pill, Row, inputClass, toneText, type Tone } from "@/components/ui";
 
-export default function ObservationsDashboard({ initialObservations, legacyObservations, evaluation, linkageModel, linkageEvaluation, clusters, archivedObservations, archiveEnabled }: {
+export default function ObservationsDashboard({ initialObservations, legacyObservations, evaluation, linkageModel, linkageEvaluation, archivedObservations, archiveEnabled }: {
   initialObservations: ResearchObservation[];
   legacyObservations: ResearchObservation[];
   evaluation: ModelEvaluation;
   linkageModel: LinkageModel;
   linkageEvaluation: LinkageEvaluation;
-  clusters: DeviceCluster[];
   archivedObservations: ArchivedObservation[];
   archiveEnabled: boolean;
 }) {
@@ -78,30 +77,15 @@ export default function ObservationsDashboard({ initialObservations, legacyObser
           )}
         </Card>
 
+        <SameDeviceSets observations={initialObservations} model={linkageModel} />
+
         <p className="px-1 text-xs leading-5 text-muted">
           These scores trust the device names you typed. If one device was saved under two names, its correct links count as mistakes,
-          and two devices sharing a name count as missed links. “Devices the model found on its own” shows where the names disagree with the model.
+          and two devices sharing a name count as missed links. “Same-device sets” shows where the names disagree with the model.
         </p>
 
         <Disclosure title="Accuracy by situation" hint="Same browser, same engine, different browsers" icon={<BarChart3 className="h-4 w-4" />}>
           <EvaluationDetails evaluation={linkageEvaluation} model={linkageModel} />
-        </Disclosure>
-
-        <Disclosure title="Devices the model found on its own" hint={`${clusters.length} inferred device${clusters.length === 1 ? "" : "s"} vs ${labels} names you gave`} icon={<Laptop className="h-4 w-4" />}>
-          {clusters.length === 0 ? <Empty>No scans yet.</Empty> : (
-            <div className="divide-y divide-line">
-              {clusters.slice(0, 40).map((cluster) => (
-                <div key={cluster.clusterId} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-ink">{cluster.labels.join(" + ")} <span className="font-normal text-muted">· {cluster.observationIds.length} scan{cluster.observationIds.length === 1 ? "" : "s"}</span></p>
-                    <p className="mt-0.5 text-xs text-muted">{cluster.browsers.join(", ")} · {cluster.networks.length || 0} network{cluster.networks.length === 1 ? "" : "s"}</p>
-                  </div>
-                  <Pill tone={cluster.purity === 1 ? "good" : "warn"}>{cluster.purity === 1 ? "matches your names" : `${Math.round(cluster.purity * 100)}% pure`}</Pill>
-                </div>
-              ))}
-            </div>
-          )}
-          <p className="mt-3 text-xs text-muted">Scans are joined when the model is at least 90% sure they share a device. Mixed names mean the model merged different devices, or one device was given two names.</p>
         </Disclosure>
 
         <Disclosure title="Compare two scans" hint="Pick any pair to see the reasoning" icon={<GitCompare className="h-4 w-4" />}>
@@ -264,6 +248,82 @@ function formatWait(seconds: number): string {
   if (seconds < 90) return `${seconds} seconds`;
   if (seconds < 5_400) return `${Math.ceil(seconds / 60)} minutes`;
   return `${Math.ceil(seconds / 3_600)} hours`;
+}
+
+const THRESHOLDS = [0.7, 0.8, 0.85, 0.9, 0.95, 0.99];
+
+/**
+ * Distinct physical devices at a chosen confidence: scans whose same-device
+ * likelihood clears the threshold are grouped into one set.
+ */
+function SameDeviceSets({ observations, model }: { observations: ResearchObservation[]; model: LinkageModel }) {
+  const [threshold, setThreshold] = useState(0.85);
+  // Every pair is scored once; regrouping at another threshold is instant.
+  const pairs = useMemo(() => scoreAllPairs(observations, model), [observations, model]);
+  const sets = useMemo(() => groupSameDevice(pairs, threshold), [pairs, threshold]);
+  const byId = useMemo(() => new Map(pairs.observations.map((item) => [item.observationId, item])), [pairs]);
+  const multi = sets.filter((set) => set.observationIds.length > 1);
+  const singles = sets.length - multi.length;
+  const names = new Set(observations.map((item) => item.deviceLabel)).size;
+
+  return (
+    <Card className="p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="flex items-center gap-2 text-sm text-muted"><Layers className="h-4 w-4 text-accent" /> Same-device sets</p>
+          <p className="mt-2 font-serif text-3xl text-ink">{sets.length} distinct device{sets.length === 1 ? "" : "s"}</p>
+          <p className="mt-1 text-sm text-muted">
+            from {pairs.observations.length} scans · {multi.length} seen more than once · {singles} seen once · you named {names}
+          </p>
+        </div>
+        <label className="text-sm">
+          <span className="mb-1 block text-muted">Same device if at least</span>
+          <select value={threshold} onChange={(event) => setThreshold(Number(event.target.value))} className={`${inputClass} w-32`}>
+            {THRESHOLDS.map((value) => <option key={value} value={value}>{Math.round(value * 100)}% sure</option>)}
+          </select>
+        </label>
+      </div>
+
+      {sets.length === 0 ? <Empty>No scans yet.</Empty> : (
+        <div className="mt-4 divide-y divide-line border-t border-line">
+          {sets.map((set, index) => {
+            const items = set.observationIds.map((id) => byId.get(id)!).filter(Boolean);
+            return (
+              <details key={set.clusterId} className="group py-3">
+                <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2">
+                  <span className="min-w-0 text-sm">
+                    <span className="font-medium text-ink">Set {index + 1}</span>
+                    <span className="text-muted"> · {items.length} scan{items.length === 1 ? "" : "s"} · {set.labels.join(", ")}</span>
+                  </span>
+                  <span className="flex flex-wrap gap-1.5">
+                    {set.weakestLink !== null && <Pill tone="good">linked ≥ {formatShare(set.weakestLink)}</Pill>}
+                    {set.labels.length > 1 && <Pill tone="warn">{set.labels.length} names</Pill>}
+                  </span>
+                </summary>
+                <div className="mt-2 rounded-xl bg-surface-2/50 px-4 py-1">
+                  {items.map((item) => (
+                    <div key={item.observationId} className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line py-2 text-sm last:border-0">
+                      <span className="text-ink">{item.deviceLabel} <span className="text-muted">· {browserOf(item.fingerprint)}{item.browserMode === "private" ? " (private)" : ""} · {item.fingerprint.osFamily}</span></span>
+                      <span className="font-mono text-xs text-muted">{item.effectivePublicIp} · {formatTimestamp(item.serverReceivedAt || item.fingerprint.collectedAt)}</span>
+                    </div>
+                  ))}
+                  <p className="py-2 text-xs text-muted">{set.browsers.join(", ")} · {set.networks.length} network{set.networks.length === 1 ? "" : "s"}</p>
+                </div>
+              </details>
+            );
+          })}
+        </div>
+      )}
+      <p className="mt-3 text-xs leading-5 text-muted">
+        A scan joins a set when the model is at least {Math.round(threshold * 100)}% sure it is the same device as one of its closest matches.
+        “Names” shows when one set holds scans you named differently.
+      </p>
+    </Card>
+  );
+}
+
+function formatShare(value: number): string {
+  return value >= 0.999 ? ">99.9%" : `${(Math.floor(value * 1000) / 10).toFixed(1)}%`;
 }
 
 function Stat({ label, value }: { label: string; value: number }) {

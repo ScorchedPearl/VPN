@@ -411,9 +411,20 @@ function normalizeRendererFamily(value: string): string {
 }
 
 function parseBrowser(userAgent: string): { family: string; major: string } {
+  // Phone makers' built-in browsers send a Chrome user agent plus their own
+  // token, and usually bundle an older Chromium than Chrome itself.
   const patterns: Array<[string, RegExp]> = [
-    ["Edge", /Edg\/(\d+)/],
-    ["Opera", /OPR\/(\d+)/],
+    ["HeyTap", /HeyTapBrowser\/(\d+)/],
+    ["Vivo Browser", /VivoBrowser\/(\d+)/],
+    ["Samsung Internet", /SamsungBrowser\/(\d+)/],
+    ["Mi Browser", /(?:MiuiBrowser|XiaoMi\/MiuiBrowser)\/(\d+)/],
+    ["UC Browser", /UCBrowser\/(\d+)/],
+    ["Yandex", /YaBrowser\/(\d+)/],
+    ["Vivaldi", /Vivaldi\/(\d+)/],
+    ["DuckDuckGo", /DuckDuckGo\/(\d+)/],
+    ["Android WebView", /; wv\).*Chrome\/(\d+)/],
+    ["Edge", /Edg(?:A|iOS)?\/(\d+)/],
+    ["Opera", /(?:OPR|OPT)\/(\d+)/],
     ["Firefox", /Firefox\/(\d+)/],
     ["Chrome", /(?:Chrome|CriOS)\/(\d+)/],
     ["Safari", /Version\/(\d+).+Safari/],

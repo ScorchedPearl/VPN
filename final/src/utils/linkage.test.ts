@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { FingerprintData, ResearchObservation } from "./fingerprint.ts";
-import { clusterObservations, evaluateLinkage, linkObservations, profileCorrelation, trainLinkageModel } from "./linkage.ts";
+import { browserOf, clusterObservations, evaluateLinkage, groupSameDevice, linkObservations, profileCorrelation, scoreAllPairs, trainLinkageModel } from "./linkage.ts";
 
 /* Synthetic study: each device has stable hardware/OS traits; each browser
    contributes engine-specific rendering; some runs are randomized (Brave). */
@@ -232,7 +232,8 @@ test("different iPhone models are not linked despite identical iOS software", ()
   const fifteen = iphone("hrishav-mobile", "Safari", [393, 852], hrishav);
   for (const model of [trainLinkageModel([]), trainLinkageModel(study(10))]) {
     const result = linkObservations(plus, fifteen, model);
-    assert.ok(result.posterior < 0.05, `posterior ${result.posterior}`);
+    assert.equal(result.verdict, "different-device", `posterior ${result.posterior}`);
+    assert.ok(result.logLikelihoodRatio < -3, `evidence ${result.logLikelihoodRatio}`);
     assert.equal(result.features.find((item) => item.id === "screen")?.bin, "different");
   }
 });
@@ -258,4 +259,79 @@ test("Brave is its own browser and its randomized hardware values are skipped", 
   const result = linkObservations(chrome, brave, trainLinkageModel([]));
   assert.equal(result.context, "same-engine");
   assert.equal(result.features.find((item) => item.id === "cpu-cores")?.status, "protected");
+});
+
+/* Root causes found on the October 2026 study data. */
+
+test("calibration stays bounded on perfectly separable data and never inverts strong evidence", () => {
+  const observations = study(16);
+  const model = trainLinkageModel(observations);
+  assert.ok(model.calibration, "expected a calibration on 96 labelled same-device pairs");
+  assert.ok(model.calibration!.slope >= 0.05 && model.calibration!.slope <= 5, `slope ${model.calibration!.slope}`);
+  const genuine = linkObservations(observations[0], observations[1], model);
+  assert.ok(genuine.logLikelihoodRatio > 10);
+  assert.ok(genuine.posterior > 0.99, `strong evidence must stay strong after calibration (${genuine.posterior})`);
+});
+
+function androidScan(label: string, agent: string, browser: "Chrome" | "Brave", hintedModel: string, chromium: number): ResearchObservation {
+  const base = observe({ ...makeDevice(700), label, os: "Android", screen: [1080, 2400], gpu: ["arm", "mali", "g68"] }, "Chrome", chromium);
+  const fingerprint = structuredClone(base.fingerprint);
+  fingerprint.userAgent = agent;
+  fingerprint.browserFamily = browser;
+  fingerprint.browserMajor = String(chromium);
+  fingerprint.screen.pixelRatioBucket = 3;
+  fingerprint.canvas.hash = `canvas-chromium-${chromium}`;
+  fingerprint.modern!.math.hash = `math-chromium-${chromium}`;
+  fingerprint.modern!.clientHints = hintedModel ? { platformVersion: "16.0.0", model: hintedModel, formFactors: [], wow64: null, fullVersionList: [] } : null;
+  return { ...base, observationId: `${label}-${browser}-${chromium}-${agent.length}`, fingerprint };
+}
+
+test("phone-maker browsers are recognised and an old bundled Chromium is not treated as the same engine", () => {
+  const heytap = androidScan("sujal", "Mozilla/5.0 (Linux; U; Android 14; en-in; RMX3392 Build/UKQ1.230924.001) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.5790.168 Mobile Safari/537.36 HeyTapBrowser/45.13", "Chrome", "", 115);
+  const chrome = androidScan("sujal", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36", "Chrome", "RMX3392", 155);
+  const result = linkObservations(heytap, chrome, trainLinkageModel([]));
+  assert.equal(browserOf(heytap.fingerprint), "HeyTap");
+  assert.equal(result.context, "cross-browser", "Chromium 115 vs 155 renders differently");
+  assert.equal(result.features.find((item) => item.id === "canvas-hash")?.status, "out-of-scope");
+  assert.equal(result.features.find((item) => item.id === "device-model")?.bin, "exact", "model from the user agent matches the client hint");
+  assert.ok(result.posterior > 0.5, `same phone across browsers (${result.posterior})`);
+});
+
+test("a different phone model is decisive even when the hardware looks the same", () => {
+  const first = androidScan("sudhanshu", "Mozilla/5.0 (Linux; U; Android 16; en-in; RMX3867 Build/BP2A.250605.015) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.5790.168 Mobile Safari/537.36 HeyTapBrowser/45.13", "Chrome", "", 115);
+  const second = androidScan("akshat", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36", "Chrome", "RMX3868", 155);
+  const result = linkObservations(first, second, trainLinkageModel([]));
+  assert.equal(result.features.find((item) => item.id === "device-model")?.bin, "different");
+  assert.ok(result.posterior < 0.2, `posterior ${result.posterior}`);
+});
+
+test("a dual-boot laptop keeps its hardware evidence across Linux and Windows", () => {
+  const device = makeDevice(800);
+  const linux = observe({ ...device, os: "Linux", screen: [1920, 1080] }, "Chrome", 1);
+  const windows = observe({ ...device, os: "Windows", screen: [1536, 864] }, "Edge" as "Chrome", 2);
+  windows.fingerprint.screen.pixelRatioBucket = 1.25; // 125% Windows display scaling
+  windows.fingerprint.modern!.fonts.detected = ["Segoe UI", "Calibri"];
+  windows.fingerprint.fonts = ["Segoe UI", "Calibri"];
+  const result = linkObservations(linux, windows, trainLinkageModel([]));
+  assert.equal(result.features.find((item) => item.id === "screen")?.bin, "exact", "1536×864 at 1.25 is the same 1920×1080 panel");
+  for (const id of ["fonts", "legacy-fonts", "canvas-hash", "pixel-ratio"]) {
+    assert.equal(result.features.find((item) => item.id === id)?.status, "out-of-scope", `${id} depends on the OS`);
+  }
+  assert.equal(result.features.find((item) => item.id === "os")?.bin, "different", "the OS change itself is still evidence");
+  // A different laptop on the other OS must still score lower.
+  const stranger = observe({ ...makeDevice(801), os: "Windows", screen: [1536, 864] }, "Chrome", 3);
+  assert.ok(result.logLikelihoodRatio > linkObservations(linux, stranger, trainLinkageModel([])).logLikelihoodRatio);
+});
+
+test("same-device sets recover each device and tighten as the threshold rises", () => {
+  const observations = study(12);
+  const pairs = scoreAllPairs(observations, trainLinkageModel(observations));
+  const at85 = groupSameDevice(pairs, 0.85);
+  assert.equal(at85.length, 12, "twelve synthetic devices");
+  assert.ok(at85.every((set) => set.purity === 1 && set.observationIds.length === 4));
+  assert.ok(at85.every((set) => set.weakestLink === null || set.weakestLink >= 0.85));
+  // A stricter threshold can only split sets, never merge them.
+  assert.ok(groupSameDevice(pairs, 0.999999).length >= at85.length);
+  // Every scan lands in exactly one set.
+  assert.equal(at85.reduce((sum, set) => sum + set.observationIds.length, 0), observations.length);
 });

@@ -92,6 +92,13 @@ interface FeatureSpec {
   collisionByOs?: Partial<Record<OsStratum | "*", number>>;
   value: (observation: ResearchObservation) => Value | null;
   compare?: (a: Value, b: Value) => number | null;
+  /**
+   * The value is chosen by the operating system (fonts, voices, driver
+   * strings, display scaling, audio mode), so it is only compared when both
+   * scans run the same OS. A dual-boot machine then keeps its hardware
+   * evidence instead of losing every OS-level signal at once.
+   */
+  osDependent?: boolean;
   /** True when a randomizing defence makes this observation's value unreliable. */
   protectedBy?: (fingerprint: FingerprintData) => boolean;
 }
@@ -174,53 +181,63 @@ export const FEATURES: FeatureSpec[] = [
   // Platform
   { id: "os", label: "Operating system", family: "platform", scope: "device", binary: true, stability: [0.995, 0.99, 0.99], collision: 0.35, collisionByOs: { "*": 0.95 },
     value: (o) => orNull(fp(o).osFamily) },
-  { id: "os-version", label: "OS version (client hints)", family: "platform", scope: "device", binary: false, stability: [0.93, 0.9, 0.9], collision: 0.12, collisionByOs: { "iOS/iPadOS": 0.4, Android: 0.3, macOS: 0.35, Windows: 0.3 },
+  { id: "os-version", label: "OS version (client hints)", family: "platform", scope: "device", osDependent: true, binary: false, stability: [0.93, 0.9, 0.9], collision: 0.12, collisionByOs: { "iOS/iPadOS": 0.4, Android: 0.3, macOS: 0.35, Windows: 0.3 },
     value: (o) => { const version = modern(o)?.clientHints?.platformVersion; return version ? version.split(".").slice(0, 2).map(Number) : null; },
     compare: (a, b) => { const [x, y] = [a as number[], b as number[]]; return x[0] !== y[0] ? 0 : x[1] === y[1] ? 1 : 0.9; } },
   { id: "architecture", label: "CPU architecture / bitness", family: "platform", scope: "device", binary: true, stability: [0.99, 0.98, 0.98], collision: 0.5, collisionByOs: { "*": 0.85 },
     value: (o) => known(fp(o).architecture) ? `${fp(o).architecture}/${fp(o).bitness}` : null },
-  { id: "device-model", label: "Device model (client hints)", family: "platform", scope: "device", binary: true, stability: [0.99, 0.97, 0.97], collision: 0.05,
-    value: (o) => orNull(modern(o)?.clientHints?.model) },
+  { id: "device-model", label: "Device model (hints or user agent)", family: "platform", scope: "device", binary: true, stability: [0.998, 0.995, 0.995], collision: 0.05,
+    value: (o) => deviceModel(fp(o)) },
 
   // Hardware
   { id: "cpu-cores", label: "Logical CPU cores", family: "hardware", scope: "device", binary: true, protectedBy: isBrave, stability: [0.99, 0.95, 0.85], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.6, Android: 0.4, macOS: 0.35 },
     value: (o) => orNull(fp(o).hardwareConcurrency ?? null) },
   { id: "memory", label: "Device memory bucket", family: "hardware", scope: "device", binary: true, protectedBy: isBrave, stability: [0.99, 0.97, 0.95], collision: 0.45, collisionByOs: { Android: 0.55, "*": 0.5 },
-    value: (o) => orNull(fp(o).deviceMemory ?? null) },
-  { id: "refresh-rate", label: "Display refresh rate", family: "hardware", scope: "device", binary: true, stability: [0.9, 0.85, 0.82], collision: 0.6, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.7, macOS: 0.75 },
+    // Chromium caps the reported value at 8 GB; some forks report 16 or 32.
+    value: (o) => { const memory = fp(o).deviceMemory; return memory ? Math.min(memory, 8) : null; } },
+  { id: "refresh-rate", label: "Display refresh rate", family: "hardware", scope: "device", osDependent: true, binary: true, stability: [0.9, 0.85, 0.82], collision: 0.6, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.7, macOS: 0.75 },
     value: (o) => orNull(modern(o)?.refreshRate.hz ?? null) },
-  { id: "pointer-polling", label: "Pointer polling rate", family: "hardware", scope: "device", binary: true, stability: [0.8, 0.75, 0.7], collision: 0.35,
+  { id: "pointer-polling", label: "Pointer polling rate", family: "hardware", scope: "device", osDependent: true, binary: true, stability: [0.8, 0.75, 0.7], collision: 0.35,
     value: (o) => orNull(modern(o)?.pointer.pollingHz ?? null) },
 
   // Display
-  { id: "screen", label: "Screen resolution", family: "display", scope: "device", binary: false, stability: [0.95, 0.94, 0.92], collision: 0.12, collisionByOs: { "iOS/iPadOS": 0.3, Android: 0.15, macOS: 0.3 },
-    value: (o) => [Math.max(fp(o).screen.width, fp(o).screen.height), Math.min(fp(o).screen.width, fp(o).screen.height), isMobile(fp(o)) ? 1 : 0],
-    // A phone or tablet reports one fixed screen size, so any difference means
-    // a different model. Desktops change with monitors and scaling.
+  { id: "screen", label: "Physical screen resolution", family: "display", scope: "device", binary: false, stability: [0.95, 0.94, 0.92], collision: 0.12, collisionByOs: { "iOS/iPadOS": 0.3, Android: 0.15, macOS: 0.3 },
+    // Physical pixels (CSS size × device pixel ratio), so OS display scaling
+    // and browser zoom cancel out: 1536×864 at 125% is the same 1920×1080 panel.
+    value: (o) => {
+      const { width, height, pixelRatioBucket } = fp(o).screen;
+      const ratio = pixelRatioBucket > 0 ? pixelRatioBucket : 1;
+      return [Math.round(Math.max(width, height) * ratio), Math.round(Math.min(width, height) * ratio), isMobile(fp(o)) ? 1 : 0];
+    },
+    // A phone or tablet has one fixed panel, so any real difference means a
+    // different model. Desktops change with external monitors.
     compare: (a, b) => {
       const [x, y] = [a as number[], b as number[]];
-      if (x[0] === y[0] && x[1] === y[1]) return 1;
+      // The stored pixel ratio is rounded to 0.25, so allow 2% slack.
+      if (Math.abs(x[0] - y[0]) <= x[0] * 0.02 && Math.abs(x[1] - y[1]) <= x[1] * 0.02) return 1;
       if (x[2] === 1 && y[2] === 1) return 0;
-      return Math.max(0, 1 - (Math.abs(x[0] - y[0]) + Math.abs(x[1] - y[1])) / 800);
+      return Math.max(0, 1 - (Math.abs(x[0] - y[0]) + Math.abs(x[1] - y[1])) / 1200);
     } },
-  { id: "pixel-ratio", label: "Device pixel ratio", family: "display", scope: "device", binary: false, stability: [0.9, 0.85, 0.82], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.4, macOS: 0.85 },
+  { id: "pixel-ratio", label: "Device pixel ratio", family: "display", scope: "device", osDependent: true, binary: false, stability: [0.9, 0.85, 0.82], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.4, macOS: 0.85 },
     value: (o) => fp(o).screen.pixelRatioBucket, compare: closeness(1) },
-  { id: "screen-insets", label: "Taskbar / dock insets", family: "display", scope: "device", binary: true, stability: [0.9, 0.88, 0.85], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.85, Android: 0.3, macOS: 0.4 },
-    value: (o) => { const insets = modern(o)?.screenInsets; return insets ? [insets.horizontal, insets.vertical, insets.left, insets.top] : null; } },
-  { id: "display-profile", label: "Colour gamut, HDR, pointer, touch", family: "display", scope: "device", binary: true, stability: [0.97, 0.93, 0.9], collision: 0.3, collisionByOs: { "iOS/iPadOS": 0.85, Android: 0.5, macOS: 0.7 },
-    // Colour depth is left out: Chromium reports 30 and Safari 24 on the same HDR panel.
-    value: (o) => fp(o).display ? [fp(o).display!.colorGamut, fp(o).display!.dynamicRange, fp(o).display!.pointer, String(fp(o).touchPoints > 0)] : null },
+  { id: "screen-insets", label: "Taskbar / dock insets", family: "display", scope: "device", osDependent: true, binary: true, stability: [0.9, 0.88, 0.85], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.85, Android: 0.3, macOS: 0.4 },
+    // On phones these reflect the browser's own toolbars, not the device.
+    value: (o) => { const insets = modern(o)?.screenInsets; return insets && !isMobile(fp(o)) ? [insets.horizontal, insets.vertical, insets.left, insets.top] : null; } },
+  { id: "display-profile", label: "Colour gamut, pointer, touch", family: "display", scope: "device", binary: true, stability: [0.97, 0.93, 0.9], collision: 0.3, collisionByOs: { "iOS/iPadOS": 0.85, Android: 0.5, macOS: 0.7 },
+    // Colour depth and dynamic range are left out: they depend on the engine
+    // (Chromium reports 30-bit, Safari 24; older forks lack the HDR query).
+    value: (o) => fp(o).display ? [fp(o).display!.colorGamut, fp(o).display!.pointer, String(fp(o).touchPoints > 0)] : null },
 
   // GPU identity
   { id: "gpu-family", label: "GPU vendor family", family: "gpu", scope: "device", binary: true, protectedBy: isBrave, stability: [0.99, 0.95, 0.9], collision: 0.3, collisionByOs: { "iOS/iPadOS": 0.98, macOS: 0.9, Android: 0.5 },
     value: (o) => orNull(fp(o).webgl.rendererFamily) },
-  { id: "gpu-renderer", label: "GPU model tokens", family: "gpu", scope: "device", binary: false, stability: [0.97, 0.85, 0.7], collision: 0.08, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.4, Android: 0.3 },
+  { id: "gpu-renderer", label: "GPU model tokens", family: "gpu", scope: "device", osDependent: true, binary: false, stability: [0.97, 0.85, 0.7], collision: 0.08, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.4, Android: 0.3 },
     value: (o) => orNull(modern(o)?.gpu.rendererTokens ?? null), compare: jaccard,
     protectedBy: (f) => Boolean(f.modern?.protections.brave || f.modern?.gpu.masked) },
   { id: "webgpu-adapter", label: "WebGPU vendor / architecture", family: "gpu", scope: "device", binary: true, stability: [0.97, 0.9, 0.8], collision: 0.2, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.8, Android: 0.4 },
     value: (o) => { const gpu = modern(o)?.webgpu; return gpu?.status === "collected" && (gpu.vendor || gpu.architecture) ? `${gpu.vendor}/${gpu.architecture}` : null; },
     protectedBy: (f) => Boolean(f.modern?.protections.brave) },
-  { id: "webgpu-subgroups", label: "WebGPU subgroup sizes", family: "gpu", scope: "device", binary: true, stability: [0.98, 0.9, 0.85], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.9 },
+  { id: "webgpu-subgroups", label: "WebGPU subgroup sizes", family: "gpu", scope: "device", osDependent: true, binary: true, stability: [0.98, 0.9, 0.85], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.9 },
     value: (o) => { const gpu = modern(o)?.webgpu; return gpu?.subgroupMinSize ? [gpu.subgroupMinSize, gpu.subgroupMaxSize ?? 0] : null; } },
 
   // GPU timing (non-deterministic, weak per comparison)
@@ -230,19 +247,19 @@ export const FEATURES: FeatureSpec[] = [
     value: (o) => { const scheduling = modern(o)?.webgpu.scheduling; return scheduling?.status === "collected" ? scheduling.profile : null; }, compare: profileCorrelation },
 
   // OS assets
-  { id: "fonts", label: "Installed font inventory", family: "os-assets", scope: "device", binary: false, stability: [0.85, 0.7, 0.6], collision: 0.08, collisionByOs: { "iOS/iPadOS": 0.85, Android: 0.5, macOS: 0.3 },
+  { id: "fonts", label: "Installed font inventory", family: "os-assets", scope: "device", osDependent: true, binary: false, stability: [0.85, 0.7, 0.6], collision: 0.08, collisionByOs: { "iOS/iPadOS": 0.85, Android: 0.5, macOS: 0.3 },
     value: (o) => modern(o)?.fonts.detected.length ? modern(o)!.fonts.detected : null, compare: jaccard },
-  { id: "legacy-fonts", label: "Core font probe (schema 4)", family: "os-assets", scope: "device", binary: false, stability: [0.9, 0.75, 0.65], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.95, Android: 0.7, macOS: 0.6 },
+  { id: "legacy-fonts", label: "Core font probe (schema 4)", family: "os-assets", scope: "device", osDependent: true, binary: false, stability: [0.9, 0.75, 0.65], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.95, Android: 0.7, macOS: 0.6 },
     value: (o) => orNull(fp(o).fonts), compare: jaccard },
-  { id: "emoji-version", label: "Emoji font release", family: "os-assets", scope: "device", binary: true, stability: [0.97, 0.92, 0.85], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.6, macOS: 0.8 },
+  { id: "emoji-version", label: "Emoji font release", family: "os-assets", scope: "device", osDependent: true, binary: true, stability: [0.97, 0.92, 0.85], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.6, macOS: 0.8 },
     value: (o) => orNull(modern(o)?.emoji.maxVersion ?? null) },
-  { id: "emoji-metrics", label: "Emoji glyph metrics", family: "os-assets", scope: "device", binary: false, stability: [0.95, 0.8, 0.55], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.9, Android: 0.6, macOS: 0.9 },
+  { id: "emoji-metrics", label: "Emoji glyph metrics", family: "os-assets", scope: "device", osDependent: true, binary: false, stability: [0.95, 0.8, 0.55], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.9, Android: 0.6, macOS: 0.9 },
     value: (o) => orNull(modern(o)?.emoji.widths ?? null), compare: vectorAgreement(0.5) },
-  { id: "writing-systems", label: "Writing-system glyph support", family: "os-assets", scope: "device", binary: false, stability: [0.95, 0.85, 0.75], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.95, Android: 0.8, macOS: 0.95 },
+  { id: "writing-systems", label: "Writing-system glyph support", family: "os-assets", scope: "device", osDependent: true, binary: false, stability: [0.95, 0.85, 0.75], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.95, Android: 0.8, macOS: 0.95 },
     value: (o) => orNull(fp(o).ndss2017?.writingSystems.supported ?? null), compare: jaccard },
-  { id: "local-voices", label: "Local speech voices", family: "os-assets", scope: "device", binary: false, stability: [0.95, 0.75, 0.6], collision: 0.2, collisionByOs: { "iOS/iPadOS": 0.5, Android: 0.4, macOS: 0.4 },
+  { id: "local-voices", label: "Local speech voices", family: "os-assets", scope: "device", osDependent: true, binary: false, stability: [0.95, 0.75, 0.6], collision: 0.2, collisionByOs: { "iOS/iPadOS": 0.5, Android: 0.4, macOS: 0.4 },
     value: (o) => orNull(modern(o)?.voices.local ?? null), compare: jaccard },
-  { id: "generic-fonts", label: "Default generic font metrics", family: "os-assets", scope: "engine", binary: false, stability: [0.95, 0.75, 0.5], collision: 0.3, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.5, macOS: 0.7 },
+  { id: "generic-fonts", label: "Default generic font metrics", family: "os-assets", scope: "engine", osDependent: true, binary: false, stability: [0.95, 0.75, 0.5], collision: 0.3, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.5, macOS: 0.7 },
     value: (o) => { const widths = modern(o)?.systemStyle.genericWidths; return widths && Object.keys(widths).length ? Object.keys(widths).sort().map((key) => widths[key]) : null; },
     compare: vectorAgreement(0.5) },
 
@@ -251,13 +268,15 @@ export const FEATURES: FeatureSpec[] = [
     value: (o) => known(fp(o).timezone.name) ? canonicalTimeZone(fp(o).timezone.name) : null },
   { id: "language", label: "Primary language", family: "locale", scope: "device", binary: true, stability: [0.97, 0.85, 0.75], collision: 0.4,
     value: (o) => orNull(fp(o).languages[0]?.toLowerCase().split("-")[0] ?? null) },
-  { id: "intl-format", label: "Locale formatting (calendar, hour cycle)", family: "locale", scope: "device", binary: true, stability: [0.97, 0.85, 0.75], collision: 0.4,
+  { id: "intl-format", label: "Locale formatting (calendar, hour cycle)", family: "locale", scope: "device", osDependent: true, binary: true, stability: [0.97, 0.85, 0.75], collision: 0.4,
     value: (o) => { const intl = modern(o)?.intl; return intl ? [intl.locale, intl.calendar, intl.numberingSystem, intl.hourCycle] : null; } },
 
   // Audio hardware
-  { id: "audio-destination", label: "Audio output sample rate / channels", family: "audio-hw", scope: "device", binary: true, stability: [0.97, 0.85, 0.8], collision: 0.5, collisionByOs: { "iOS/iPadOS": 0.9, macOS: 0.7 },
+  { id: "audio-destination", label: "Audio output sample rate / channels", family: "audio-hw", scope: "device", osDependent: true, binary: true, stability: [0.97, 0.85, 0.8], collision: 0.5, collisionByOs: { "iOS/iPadOS": 0.9, macOS: 0.7 },
     value: (o) => { const destination = fp(o).ndss2017?.audioDestination; return destination?.sampleRate ? [destination.sampleRate, destination.maxChannelCount ?? -1] : null; } },
-  { id: "media-devices", label: "Media device counts", family: "audio-hw", scope: "device", binary: true, stability: [0.9, 0.7, 0.6], collision: 0.5, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.6 },
+  { id: "media-devices", label: "Media device counts", family: "audio-hw", scope: "browser", binary: true, stability: [0.9, 0, 0], collision: 0.5, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.6 },
+    // Browsers decide how many devices to reveal before permission (Chrome
+    // shows one per kind), so counts are only compared within one browser.
     value: (o) => { const devices = modern(o)?.mediaDevices; return devices ? [devices.audioinput, devices.videoinput, devices.audiooutput] : null; } },
 
   // Engine rendering (same engine only)
@@ -320,11 +339,22 @@ function ipPrefix(ip: string | undefined): string | null {
   return null;
 }
 
+/**
+ * Phone model from client hints (Chrome) or, failing that, from the user
+ * agent: built-in browsers such as HeyTap and Vivo still send
+ * "Android 16; RMX3867 Build/…". Chrome's reduced agent says only "K".
+ */
+function deviceModel(fingerprint: FingerprintData): string | null {
+  const hinted = fingerprint.modern?.clientHints?.model?.trim();
+  if (hinted) return hinted.toUpperCase();
+  const match = (fingerprint.userAgent || "").match(/Android [\d.]+; (?:[a-z]{2}-[a-z]{2}; )?([^;)]+?)(?: Build\/[^;)]*)?\)/);
+  const model = match?.[1].trim();
+  return model && model !== "K" ? model.toUpperCase() : null;
+}
+
 /* ----------------------------------------------------------------------- */
 /* Context                                                                  */
 /* ----------------------------------------------------------------------- */
-
-const CHROMIUM = new Set(["Chrome", "Edge", "Opera", "Brave", "Samsung", "Vivaldi"]);
 
 function isMobile(fingerprint: FingerprintData): boolean {
   return MOBILE_OS.has(fingerprint.osFamily);
@@ -335,21 +365,52 @@ function isBrave(fingerprint: FingerprintData): boolean {
   return fingerprint.browserFamily === "Brave" || Boolean(fingerprint.modern?.protections.brave);
 }
 
+/**
+ * Chromium forks that present a Chrome user agent but add their own token.
+ * Phone makers' built-in browsers (HeyTap on Realme/OPPO/OnePlus, Vivo,
+ * Samsung, Mi) often run a much older Chromium than Chrome itself.
+ */
+const UA_FORKS: Array<[RegExp, string]> = [
+  [/HeyTapBrowser\//, "HeyTap"], [/VivoBrowser\//, "Vivo Browser"], [/SamsungBrowser\//, "Samsung Internet"],
+  [/MiuiBrowser\/|XiaoMi\//, "Mi Browser"], [/UCBrowser\//, "UC Browser"], [/YaBrowser\//, "Yandex"],
+  [/OPR\/|OPT\//, "Opera"], [/Edg(?:A|iOS)?\//, "Edge"], [/Vivaldi\//, "Vivaldi"], [/DuckDuckGo\//, "DuckDuckGo"],
+  [/; wv\)/, "Android WebView"],
+];
+
 export function browserOf(fingerprint: FingerprintData): string {
-  return isBrave(fingerprint) ? "Brave" : fingerprint.browserFamily;
+  if (isBrave(fingerprint)) return "Brave";
+  for (const [pattern, name] of UA_FORKS) if (pattern.test(fingerprint.userAgent || "")) return name;
+  return fingerprint.browserFamily;
 }
 
 export function engineOf(fingerprint: FingerprintData): string {
   const browser = browserOf(fingerprint);
-  if (browser === "Firefox" && fingerprint.osFamily !== "iOS/iPadOS") return "gecko";
-  if (browser === "Safari" || fingerprint.osFamily === "iOS/iPadOS") return "webkit";
-  if (CHROMIUM.has(browser)) return "blink";
-  return browser.toLowerCase();
+  if (fingerprint.osFamily === "iOS/iPadOS") return "webkit";
+  if (browser === "Firefox") return "gecko";
+  if (browser === "Safari") return "webkit";
+  return "blink";
 }
 
+/** Major version of the rendering engine, when the user agent reveals it. */
+function engineVersion(fingerprint: FingerprintData): number | null {
+  const agent = fingerprint.userAgent || "";
+  const engine = engineOf(fingerprint);
+  const match = engine === "gecko" ? agent.match(/Firefox\/(\d+)/)
+    : engine === "blink" ? agent.match(/Chrome\/(\d+)/)
+      : agent.match(/(?:iPhone OS|CPU OS|Version\/)(\d+)/);
+  return match ? Number(match[1]) : null;
+}
+
+/**
+ * Two browsers only count as "the same engine" when they share an engine at
+ * a similar version: Chromium 115 (bundled in many phone browsers) and
+ * Chromium 155 render canvas, WebGL and math differently.
+ */
 export function comparisonContext(a: FingerprintData, b: FingerprintData): ComparisonContext {
   if (browserOf(a) === browserOf(b)) return "same-browser";
-  return engineOf(a) === engineOf(b) ? "same-engine" : "cross-browser";
+  if (engineOf(a) !== engineOf(b)) return "cross-browser";
+  const [first, second] = [engineVersion(a), engineVersion(b)];
+  return first !== null && second !== null && Math.abs(first - second) > 6 ? "cross-browser" : "same-engine";
 }
 
 /** Pairs on the same OS are scored against that OS's own collision rates. */
@@ -490,11 +551,14 @@ interface PairBins {
 
 function comparePair(a: Extracted, b: Extracted): PairBins {
   const context = comparisonContext(a.observation.fingerprint, b.observation.fingerprint);
+  const sameOs = a.observation.fingerprint.osFamily === b.observation.fingerprint.osFamily;
   const bins = new Int8Array(FEATURES.length);
   const similarities = new Float32Array(FEATURES.length);
   FEATURES.forEach((spec, index) => {
     similarities[index] = NaN;
     if (!eligible(spec, context)) { bins[index] = -3; return; }
+    // Rendering and OS-chosen values only mean something on the same OS.
+    if (!sameOs && (spec.osDependent || spec.scope !== "device")) { bins[index] = -3; return; }
     const first = a.values[index];
     const second = b.values[index];
     if (first === null || second === null) { bins[index] = -1; return; }
@@ -877,77 +941,152 @@ export interface DeviceCluster {
   browsers: string[];
   networks: string[];
   purity: number;
+  /** Lowest same-device posterior among the links that formed the set. */
+  weakestLink: number | null;
+}
+
+/** Same-device posterior for every pair of observations, scored once. */
+export interface PairPosteriors {
+  observations: ResearchObservation[];
+  /** Row-major n × n matrix; the diagonal is 1. */
+  posteriors: number[];
+}
+
+export function scoreAllPairs(observations: ResearchObservation[], model: LinkageModel, limit = 300): PairPosteriors {
+  const rows = observations.slice(0, limit).map(extract);
+  const size = rows.length;
+  const posteriors = new Array<number>(size * size).fill(1);
+  for (let left = 0; left < size; left += 1) {
+    for (let right = left + 1; right < size; right += 1) {
+      const posterior = posteriorFrom(aggregate(comparePair(rows[left], rows[right]), model.counts).total, model);
+      posteriors[left * size + right] = posterior;
+      posteriors[right * size + left] = posterior;
+    }
+  }
+  return { observations: rows.map((row) => row.observation), posteriors };
 }
 
 /**
- * FP-STALKER-style linking: each observation joins its strongest neighbours
- * (up to three) whose posterior clears the threshold, so a device seen in
- * several browsers is not split by browser. Union-find keeps it transitive.
+ * Groups observations into same-device sets at a confidence threshold.
+ * FP-STALKER-style: each observation joins its strongest neighbours (up to
+ * three) at or above the threshold, so a device seen in several browsers is
+ * not split by browser, while a single weak link cannot chain whole groups.
+ * Union-find keeps membership transitive.
  */
-export function clusterObservations(observations: ResearchObservation[], model: LinkageModel, threshold = 0.9, neighbours = 3): DeviceCluster[] {
-  const rows = observations.slice(0, 300).map(extract);
-  const parent = rows.map((_, index) => index);
+export function groupSameDevice(pairs: PairPosteriors, threshold = 0.85, neighbours = 3): DeviceCluster[] {
+  const size = pairs.observations.length;
+  const parent = Array.from({ length: size }, (_, index) => index);
   const find = (index: number): number => (parent[index] === index ? index : (parent[index] = find(parent[index])));
-  for (let left = 0; left < rows.length; left += 1) {
+  const links: Array<[number, number, number]> = [];
+  for (let left = 0; left < size; left += 1) {
     const candidates: Array<{ index: number; posterior: number }> = [];
-    for (let right = 0; right < rows.length; right += 1) {
-      if (left === right) continue;
-      const { total } = aggregate(comparePair(rows[left], rows[right]), model.counts);
-      const posterior = posteriorFrom(total, model);
-      if (posterior >= threshold) candidates.push({ index: right, posterior });
+    for (let right = 0; right < size; right += 1) {
+      const posterior = pairs.posteriors[left * size + right];
+      if (left !== right && posterior >= threshold) candidates.push({ index: right, posterior });
     }
     candidates.sort((a, b) => b.posterior - a.posterior);
-    for (const candidate of candidates.slice(0, neighbours)) parent[find(left)] = find(candidate.index);
+    for (const candidate of candidates.slice(0, neighbours)) {
+      parent[find(left)] = find(candidate.index);
+      links.push([left, candidate.index, candidate.posterior]);
+    }
   }
-  const groups = new Map<number, ResearchObservation[]>();
-  rows.forEach((row, index) => {
-    const root = find(index);
-    groups.set(root, [...(groups.get(root) || []), row.observation]);
-  });
-  return Array.from(groups.values()).map((items) => {
+  const groups = new Map<number, number[]>();
+  for (let index = 0; index < size; index += 1) groups.set(find(index), [...(groups.get(find(index)) || []), index]);
+  const weakest = new Map<number, number>();
+  for (const [left, , posterior] of links) {
+    const root = find(left);
+    weakest.set(root, Math.min(weakest.get(root) ?? 1, posterior));
+  }
+  return Array.from(groups.entries()).map(([root, indexes]) => {
+    const items = indexes.map((index) => pairs.observations[index]);
     const labelCounts = new Map<string, number>();
     for (const item of items) labelCounts.set(item.deviceLabel, (labelCounts.get(item.deviceLabel) || 0) + 1);
     return {
       clusterId: items[items.length - 1].observationId.slice(0, 8),
       observationIds: items.map((item) => item.observationId),
       labels: Array.from(labelCounts.keys()),
-      browsers: Array.from(new Set(items.map((item) => `${item.fingerprint.browserFamily}${item.browserMode === "private" ? " (private)" : ""}`))),
+      browsers: Array.from(new Set(items.map((item) => `${browserOf(item.fingerprint)}${item.browserMode === "private" ? " (private)" : ""}`))),
       networks: Array.from(new Set(items.map((item) => item.serverNetwork?.geoIp?.asn || item.effectivePublicIp).filter((value) => value && value !== "Unknown"))),
       purity: Math.max(...labelCounts.values()) / items.length,
+      weakestLink: items.length > 1 ? weakest.get(root) ?? null : null,
     };
   }).sort((a, b) => b.observationIds.length - a.observationIds.length);
+}
+
+export function clusterObservations(observations: ResearchObservation[], model: LinkageModel, threshold = 0.9, neighbours = 3): DeviceCluster[] {
+  return groupSameDevice(scoreAllPairs(observations, model), threshold, neighbours);
 }
 
 /* ----------------------------------------------------------------------- */
 /* Math                                                                     */
 /* ----------------------------------------------------------------------- */
 
+/**
+ * Platt scaling, made robust for small, nearly separable study data:
+ * - Platt's (1999) smoothed targets instead of hard 0/1 labels, so a perfect
+ *   separation cannot push the fit to infinity;
+ * - L2 shrinkage toward the identity map (slope 1, intercept 0);
+ * - damped Newton steps with a backtracking line search;
+ * - rejection of any fit outside sane bounds or worse than the identity.
+ * An unrestricted Newton fit diverged on real data (slope ≈ 40,000), which
+ * turned every comparison into ~0%.
+ */
 function plattFit(rows: Array<{ llr: number; label: 0 | 1 }>): { slope: number; intercept: number } | null {
-  // Newton-Raphson on the logistic log-likelihood with light L2 damping.
+  const positives = rows.filter((row) => row.label === 1).length;
+  const negatives = rows.length - positives;
+  const high = (positives + 1) / (positives + 2);
+  const low = 1 / (negatives + 2);
+  const targets = rows.map((row) => (row.label ? high : low));
+  const shrink = 0.5;
+  const loss = (slope: number, intercept: number) => {
+    let total = shrink * ((slope - 1) ** 2 + intercept ** 2);
+    rows.forEach((row, index) => {
+      const z = slope * row.llr + intercept;
+      // log(1 + e^z) computed stably
+      const softplus = z > 0 ? z + Math.log1p(Math.exp(-z)) : Math.log1p(Math.exp(z));
+      total += softplus - targets[index] * z;
+    });
+    return total;
+  };
   let slope = 1;
   let intercept = 0;
-  for (let iteration = 0; iteration < 50; iteration += 1) {
-    let gradientSlope = -0.01 * (slope - 1), gradientIntercept = 0;
-    let hss = 0.01, hsi = 0, hii = 1e-6;
-    for (const row of rows) {
+  let current = loss(slope, intercept);
+  const identityLoss = current;
+  for (let iteration = 0; iteration < 100; iteration += 1) {
+    let gradientSlope = 2 * shrink * (slope - 1), gradientIntercept = 2 * shrink * intercept;
+    let hss = 2 * shrink, hsi = 0, hii = 2 * shrink;
+    rows.forEach((row, index) => {
       const probability = sigmoid(slope * row.llr + intercept);
-      const error = row.label - probability;
+      const error = probability - targets[index];
       const weight = probability * (1 - probability);
       gradientSlope += error * row.llr;
       gradientIntercept += error;
       hss += weight * row.llr * row.llr;
       hsi += weight * row.llr;
       hii += weight;
-    }
+    });
     const determinant = hss * hii - hsi * hsi;
-    if (Math.abs(determinant) < 1e-12) return null;
+    if (!(determinant > 1e-12)) break;
     const stepSlope = (hii * gradientSlope - hsi * gradientIntercept) / determinant;
     const stepIntercept = (hss * gradientIntercept - hsi * gradientSlope) / determinant;
-    slope += stepSlope;
-    intercept += stepIntercept;
-    if (Math.abs(stepSlope) + Math.abs(stepIntercept) < 1e-6) break;
+    let scale = 1;
+    let accepted = false;
+    while (scale > 1e-4) {
+      const candidate = loss(slope - scale * stepSlope, intercept - scale * stepIntercept);
+      if (candidate <= current) {
+        slope -= scale * stepSlope;
+        intercept -= scale * stepIntercept;
+        accepted = current - candidate < 1e-9;
+        current = candidate;
+        break;
+      }
+      scale /= 2;
+    }
+    if (scale <= 1e-4 || accepted) break;
   }
-  if (!Number.isFinite(slope) || !Number.isFinite(intercept) || slope <= 0) return null;
+  if (!Number.isFinite(slope) || !Number.isFinite(intercept)) return null;
+  if (slope < 0.05 || slope > 5 || Math.abs(intercept) > 20) return null;
+  if (current > identityLoss) return null;
   return { slope, intercept };
 }
 
