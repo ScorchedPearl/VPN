@@ -146,9 +146,6 @@ export function ConclusionVisual() {
           <strong>Research Papers</strong>
           <a href="/papers/beauty-sp16.pdf" target="_blank" rel="noreferrer">Beauty &amp; Beast</a>
           <a href="/papers/ndss2017_02B-3_Cao_paper.pdf" target="_blank" rel="noreferrer">Cross-Browser Fingerprinting</a>
-          <a href="/papers/snitch-madweb25.pdf" target="_blank" rel="noreferrer">SNITCH</a>
-          <a href="/papers/techreport-2025-3.pdf" target="_blank" rel="noreferrer">Technical Report</a>
-          <a href="/papers/tunnel-ml-2022.pdf" target="_blank" rel="noreferrer">Tunnel ML</a>
         </div>
       </section>
     </div>

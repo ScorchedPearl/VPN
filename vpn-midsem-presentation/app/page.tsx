@@ -571,7 +571,7 @@ function LiteratureReviewVisual() {
           <div>
             <span className="ms-vichanshu-number">01</span>
             <h3>Beauty and the Beast</h3>
-            <p className="ms-paper-authors">Laperdrix et al. · IEEE S&amp;P · 2016</p>
+            <p className="ms-paper-authors">Laperdrix et al. · IEEE S&amp;P</p>
             <p>Shows that ordinary web-browser attributes can form highly unique fingerprints. It reports <strong>89.4% uniqueness</strong> on desktop devices, while mobile fingerprints are less distinctive.</p>
           </div>
         </article>
@@ -580,7 +580,7 @@ function LiteratureReviewVisual() {
           <div>
             <span className="ms-vichanshu-number">02</span>
             <h3>Cross-Browser Fingerprinting</h3>
-            <p className="ms-paper-authors">Cao, Li &amp; Wijmans · NDSS · 2017</p>
+            <p className="ms-paper-authors">Cao, Li &amp; Wijmans · NDSS</p>
             <p>Uses operating-system and hardware features to link the same physical device across browsers, reaching <strong>99.24% identification accuracy</strong> in its reported evaluation.</p>
           </div>
         </article>
@@ -763,7 +763,6 @@ export default function Home() {
       >
         <div className="ms-midsem-cover-layout">
           <div className="ms-midsem-cover-main">
-            <p className="ms-midsem-cover-kicker">Midsem Presentation</p>
             <h1>VPN Detection Using <em>Browser Fingerprinting</em></h1>
             <p className="ms-midsem-cover-topic">Finding device uniqueness through browser-observed signals</p>
           </div>
