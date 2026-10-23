@@ -645,7 +645,9 @@ export async function generateClientFingerprint(options: { stunUrl?: string; hig
     connection?: { effectiveType?: string; downlink?: number; rtt?: number };
   };
   const userAgent = navigator.userAgent;
-  const browser = parseBrowser(userAgent);
+  const parsedBrowser = parseBrowser(userAgent);
+  // Brave sends a Chrome user agent but exposes navigator.brave.
+  const browser = "brave" in navigator ? { ...parsedBrowser, family: "Brave" } : parsedBrowser;
   const platform = navigator.platform || "Unknown";
   const osFamily = parseOs(userAgent, platform);
   const hardwareConcurrency = navigator.hardwareConcurrency || null;

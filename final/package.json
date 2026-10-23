@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --test src/utils/*.test.ts",
-    "hash-password": "node scripts/hash-password.ts"
+    "hash-password": "node scripts/hash-password.ts",
+    "rescore": "node --no-warnings scripts/rescore.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",

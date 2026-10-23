@@ -204,3 +204,58 @@ test("timezone aliases from different engines compare equal", async () => {
   assert.equal(canonicalTimeZone("Asia/Calcutta"), canonicalTimeZone("Asia/Kolkata"));
   assert.equal(canonicalTimeZone("Europe/Berlin"), "Europe/Berlin");
 });
+
+/* iOS homogeneity: every iPhone on one iOS release shares fonts, emoji,
+   canvas, WebGL and GPU name. Only screen, settings and timing differ. */
+function iphone(label: string, browser: "Safari" | "Chrome", screen: [number, number], person: { voices: string[]; locale: string; timing: number[] }): ResearchObservation {
+  const base = observe({ ...makeDevice(500), label, os: "iOS/iPadOS", cores: 4, screen, gpu: ["apple", "gpu"], fonts: FONTS.slice(0, 30), timezone: "Asia/Kolkata", timing: person.timing, ip: "152.59.187.1" }, browser === "Safari" ? "Chrome" : "Chrome", 1);
+  const fingerprint = structuredClone(base.fingerprint);
+  fingerprint.browserFamily = browser;
+  fingerprint.screen.pixelRatioBucket = 3;
+  fingerprint.canvas.hash = "ios-18-canvas";
+  fingerprint.webgl.parameterHash = "ios-18-webgl";
+  fingerprint.webgl.rendererFamily = "apple-gpu";
+  fingerprint.audio = { status: "collected", hash: "ios-18-audio", sampleRate: 48000 };
+  fingerprint.modern!.math.hash = "ios-18-math";
+  fingerprint.modern!.fonts.detected = FONTS.slice(0, 30);
+  fingerprint.modern!.canvasRobust.grid = new Array(64).fill(100);
+  fingerprint.modern!.voices = { status: "collected", local: person.voices, remoteCount: 0 };
+  fingerprint.modern!.intl.locale = person.locale;
+  fingerprint.modern!.gpu.rendererTokens = ["apple", "gpu"];
+  return { ...base, observationId: `${label}-${browser}`, deviceLabel: label, fingerprint };
+}
+
+test("different iPhone models are not linked despite identical iOS software", () => {
+  const vishwas = { voices: ["Albert|en-US", "Rishi|en-IN"], locale: "en-IN", timing: Array.from({ length: 16 }, (_, i) => 1 + (i % 3) * 0.1) };
+  const hrishav = { voices: ["Albert|en-US", "Samantha|en-US"], locale: "en-US", timing: Array.from({ length: 16 }, (_, i) => 1 + (i % 5) * 0.08) };
+  const plus = iphone("vishwas-mobile", "Chrome", [430, 932], vishwas);
+  const fifteen = iphone("hrishav-mobile", "Safari", [393, 852], hrishav);
+  for (const model of [trainLinkageModel([]), trainLinkageModel(study(10))]) {
+    const result = linkObservations(plus, fifteen, model);
+    assert.ok(result.posterior < 0.05, `posterior ${result.posterior}`);
+    assert.equal(result.features.find((item) => item.id === "screen")?.bin, "different");
+  }
+});
+
+test("the same iPhone across Safari and Chrome outranks an identical-model twin", () => {
+  const owner = { voices: ["Albert|en-US", "Rishi|en-IN"], locale: "en-IN", timing: Array.from({ length: 16 }, (_, i) => 1 + (i % 3) * 0.1) };
+  const twinOwner = { voices: ["Albert|en-US", "Samantha|en-US"], locale: "en-US", timing: Array.from({ length: 16 }, (_, i) => 1 + (i % 5) * 0.08) };
+  const safari = iphone("phone-a", "Safari", [393, 852], owner);
+  const chrome = iphone("phone-a", "Chrome", [393, 852], owner);
+  const twin = iphone("phone-b", "Safari", [393, 852], twinOwner);
+  const model = trainLinkageModel([]);
+  const genuine = linkObservations(safari, chrome, model);
+  const impostor = linkObservations(safari, twin, model);
+  assert.equal(genuine.context, "same-engine", "every iOS browser is WebKit");
+  assert.ok(genuine.logLikelihoodRatio > impostor.logLikelihoodRatio + 2, `${genuine.logLikelihoodRatio} vs ${impostor.logLikelihoodRatio}`);
+  assert.notEqual(impostor.verdict, "same-device");
+});
+
+test("Brave is its own browser and its randomized hardware values are skipped", () => {
+  const device = makeDevice(42);
+  const chrome = observe(device, "Chrome", 1);
+  const brave = observe({ ...device, cores: 6 }, "Chrome", 2, { brave: true });
+  const result = linkObservations(chrome, brave, trainLinkageModel([]));
+  assert.equal(result.context, "same-engine");
+  assert.equal(result.features.find((item) => item.id === "cpu-cores")?.status, "protected");
+});

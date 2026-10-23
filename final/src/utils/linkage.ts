@@ -35,6 +35,9 @@ export type LinkFamily =
   | "locale" | "audio-hw" | "engine-render" | "browser-config" | "network";
 
 type Value = string | number | boolean | string[] | number[];
+type OsStratum = "iOS/iPadOS" | "Android" | "macOS" | "Windows" | "Linux" | "ChromeOS";
+const OS_STRATA = new Set<string>(["iOS/iPadOS", "Android", "macOS", "Windows", "Linux", "ChromeOS"]);
+const MOBILE_OS = new Set<string>(["iOS/iPadOS", "Android"]);
 const CONTEXTS: ComparisonContext[] = ["same-browser", "same-engine", "cross-browser"];
 const BIN_EDGES = [0.97, 0.85, 0.5];
 const BIN_NAMES = ["exact", "close", "partial", "different"] as const;
@@ -80,6 +83,13 @@ interface FeatureSpec {
   stability: [number, number, number];
   /** P(exact | different devices). */
   collision: number;
+  /**
+   * P(exact | different devices that run the same OS). Some platforms are
+   * near-uniform: every iPhone on one iOS release shares fonts, emoji,
+   * canvas/WebGL output and GPU name, so a match there proves little.
+   * "*" applies to any shared OS.
+   */
+  collisionByOs?: Partial<Record<OsStratum | "*", number>>;
   value: (observation: ResearchObservation) => Value | null;
   compare?: (a: Value, b: Value) => number | null;
   /** True when a randomizing defence makes this observation's value unreliable. */
@@ -162,47 +172,55 @@ const modern = (observation: ResearchObservation) => observation.fingerprint.mod
 
 export const FEATURES: FeatureSpec[] = [
   // Platform
-  { id: "os", label: "Operating system", family: "platform", scope: "device", binary: true, stability: [0.995, 0.99, 0.99], collision: 0.35,
+  { id: "os", label: "Operating system", family: "platform", scope: "device", binary: true, stability: [0.995, 0.99, 0.99], collision: 0.35, collisionByOs: { "*": 0.95 },
     value: (o) => orNull(fp(o).osFamily) },
-  { id: "os-version", label: "OS version (client hints)", family: "platform", scope: "device", binary: false, stability: [0.93, 0.9, 0.9], collision: 0.12,
+  { id: "os-version", label: "OS version (client hints)", family: "platform", scope: "device", binary: false, stability: [0.93, 0.9, 0.9], collision: 0.12, collisionByOs: { "iOS/iPadOS": 0.4, Android: 0.3, macOS: 0.35, Windows: 0.3 },
     value: (o) => { const version = modern(o)?.clientHints?.platformVersion; return version ? version.split(".").slice(0, 2).map(Number) : null; },
     compare: (a, b) => { const [x, y] = [a as number[], b as number[]]; return x[0] !== y[0] ? 0 : x[1] === y[1] ? 1 : 0.9; } },
-  { id: "architecture", label: "CPU architecture / bitness", family: "platform", scope: "device", binary: true, stability: [0.99, 0.98, 0.98], collision: 0.5,
+  { id: "architecture", label: "CPU architecture / bitness", family: "platform", scope: "device", binary: true, stability: [0.99, 0.98, 0.98], collision: 0.5, collisionByOs: { "*": 0.85 },
     value: (o) => known(fp(o).architecture) ? `${fp(o).architecture}/${fp(o).bitness}` : null },
   { id: "device-model", label: "Device model (client hints)", family: "platform", scope: "device", binary: true, stability: [0.99, 0.97, 0.97], collision: 0.05,
     value: (o) => orNull(modern(o)?.clientHints?.model) },
 
   // Hardware
-  { id: "cpu-cores", label: "Logical CPU cores", family: "hardware", scope: "device", binary: true, stability: [0.99, 0.95, 0.85], collision: 0.25,
+  { id: "cpu-cores", label: "Logical CPU cores", family: "hardware", scope: "device", binary: true, protectedBy: isBrave, stability: [0.99, 0.95, 0.85], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.6, Android: 0.4, macOS: 0.35 },
     value: (o) => orNull(fp(o).hardwareConcurrency ?? null) },
-  { id: "memory", label: "Device memory bucket", family: "hardware", scope: "device", binary: true, stability: [0.99, 0.97, 0.95], collision: 0.45,
+  { id: "memory", label: "Device memory bucket", family: "hardware", scope: "device", binary: true, protectedBy: isBrave, stability: [0.99, 0.97, 0.95], collision: 0.45, collisionByOs: { Android: 0.55, "*": 0.5 },
     value: (o) => orNull(fp(o).deviceMemory ?? null) },
-  { id: "refresh-rate", label: "Display refresh rate", family: "hardware", scope: "device", binary: true, stability: [0.9, 0.85, 0.82], collision: 0.6,
+  { id: "refresh-rate", label: "Display refresh rate", family: "hardware", scope: "device", binary: true, stability: [0.9, 0.85, 0.82], collision: 0.6, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.7, macOS: 0.75 },
     value: (o) => orNull(modern(o)?.refreshRate.hz ?? null) },
   { id: "pointer-polling", label: "Pointer polling rate", family: "hardware", scope: "device", binary: true, stability: [0.8, 0.75, 0.7], collision: 0.35,
     value: (o) => orNull(modern(o)?.pointer.pollingHz ?? null) },
 
   // Display
-  { id: "screen", label: "Screen resolution", family: "display", scope: "device", binary: false, stability: [0.95, 0.94, 0.92], collision: 0.12,
-    value: (o) => [Math.max(fp(o).screen.width, fp(o).screen.height), Math.min(fp(o).screen.width, fp(o).screen.height)],
-    compare: (a, b) => { const [x, y] = [a as number[], b as number[]]; return x[0] === y[0] && x[1] === y[1] ? 1 : Math.max(0, 1 - (Math.abs(x[0] - y[0]) + Math.abs(x[1] - y[1])) / 800); } },
-  { id: "pixel-ratio", label: "Device pixel ratio", family: "display", scope: "device", binary: false, stability: [0.9, 0.85, 0.82], collision: 0.4,
+  { id: "screen", label: "Screen resolution", family: "display", scope: "device", binary: false, stability: [0.95, 0.94, 0.92], collision: 0.12, collisionByOs: { "iOS/iPadOS": 0.3, Android: 0.15, macOS: 0.3 },
+    value: (o) => [Math.max(fp(o).screen.width, fp(o).screen.height), Math.min(fp(o).screen.width, fp(o).screen.height), isMobile(fp(o)) ? 1 : 0],
+    // A phone or tablet reports one fixed screen size, so any difference means
+    // a different model. Desktops change with monitors and scaling.
+    compare: (a, b) => {
+      const [x, y] = [a as number[], b as number[]];
+      if (x[0] === y[0] && x[1] === y[1]) return 1;
+      if (x[2] === 1 && y[2] === 1) return 0;
+      return Math.max(0, 1 - (Math.abs(x[0] - y[0]) + Math.abs(x[1] - y[1])) / 800);
+    } },
+  { id: "pixel-ratio", label: "Device pixel ratio", family: "display", scope: "device", binary: false, stability: [0.9, 0.85, 0.82], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.4, macOS: 0.85 },
     value: (o) => fp(o).screen.pixelRatioBucket, compare: closeness(1) },
-  { id: "screen-insets", label: "Taskbar / dock insets", family: "display", scope: "device", binary: true, stability: [0.9, 0.88, 0.85], collision: 0.25,
+  { id: "screen-insets", label: "Taskbar / dock insets", family: "display", scope: "device", binary: true, stability: [0.9, 0.88, 0.85], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.85, Android: 0.3, macOS: 0.4 },
     value: (o) => { const insets = modern(o)?.screenInsets; return insets ? [insets.horizontal, insets.vertical, insets.left, insets.top] : null; } },
-  { id: "display-profile", label: "Colour depth, gamut, HDR, pointer", family: "display", scope: "device", binary: true, stability: [0.97, 0.93, 0.9], collision: 0.3,
-    value: (o) => fp(o).display ? [String(fp(o).colorDepth), fp(o).display!.colorGamut, fp(o).display!.dynamicRange, fp(o).display!.pointer, String(fp(o).touchPoints > 0)] : null },
+  { id: "display-profile", label: "Colour gamut, HDR, pointer, touch", family: "display", scope: "device", binary: true, stability: [0.97, 0.93, 0.9], collision: 0.3, collisionByOs: { "iOS/iPadOS": 0.85, Android: 0.5, macOS: 0.7 },
+    // Colour depth is left out: Chromium reports 30 and Safari 24 on the same HDR panel.
+    value: (o) => fp(o).display ? [fp(o).display!.colorGamut, fp(o).display!.dynamicRange, fp(o).display!.pointer, String(fp(o).touchPoints > 0)] : null },
 
   // GPU identity
-  { id: "gpu-family", label: "GPU vendor family", family: "gpu", scope: "device", binary: true, stability: [0.99, 0.95, 0.9], collision: 0.3,
+  { id: "gpu-family", label: "GPU vendor family", family: "gpu", scope: "device", binary: true, protectedBy: isBrave, stability: [0.99, 0.95, 0.9], collision: 0.3, collisionByOs: { "iOS/iPadOS": 0.98, macOS: 0.9, Android: 0.5 },
     value: (o) => orNull(fp(o).webgl.rendererFamily) },
-  { id: "gpu-renderer", label: "GPU model tokens", family: "gpu", scope: "device", binary: false, stability: [0.97, 0.85, 0.7], collision: 0.08,
+  { id: "gpu-renderer", label: "GPU model tokens", family: "gpu", scope: "device", binary: false, stability: [0.97, 0.85, 0.7], collision: 0.08, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.4, Android: 0.3 },
     value: (o) => orNull(modern(o)?.gpu.rendererTokens ?? null), compare: jaccard,
     protectedBy: (f) => Boolean(f.modern?.protections.brave || f.modern?.gpu.masked) },
-  { id: "webgpu-adapter", label: "WebGPU vendor / architecture", family: "gpu", scope: "device", binary: true, stability: [0.97, 0.9, 0.8], collision: 0.2,
+  { id: "webgpu-adapter", label: "WebGPU vendor / architecture", family: "gpu", scope: "device", binary: true, stability: [0.97, 0.9, 0.8], collision: 0.2, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.8, Android: 0.4 },
     value: (o) => { const gpu = modern(o)?.webgpu; return gpu?.status === "collected" && (gpu.vendor || gpu.architecture) ? `${gpu.vendor}/${gpu.architecture}` : null; },
     protectedBy: (f) => Boolean(f.modern?.protections.brave) },
-  { id: "webgpu-subgroups", label: "WebGPU subgroup sizes", family: "gpu", scope: "device", binary: true, stability: [0.98, 0.9, 0.85], collision: 0.4,
+  { id: "webgpu-subgroups", label: "WebGPU subgroup sizes", family: "gpu", scope: "device", binary: true, stability: [0.98, 0.9, 0.85], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.9 },
     value: (o) => { const gpu = modern(o)?.webgpu; return gpu?.subgroupMinSize ? [gpu.subgroupMinSize, gpu.subgroupMaxSize ?? 0] : null; } },
 
   // GPU timing (non-deterministic, weak per comparison)
@@ -212,19 +230,19 @@ export const FEATURES: FeatureSpec[] = [
     value: (o) => { const scheduling = modern(o)?.webgpu.scheduling; return scheduling?.status === "collected" ? scheduling.profile : null; }, compare: profileCorrelation },
 
   // OS assets
-  { id: "fonts", label: "Installed font inventory", family: "os-assets", scope: "device", binary: false, stability: [0.85, 0.7, 0.6], collision: 0.08,
+  { id: "fonts", label: "Installed font inventory", family: "os-assets", scope: "device", binary: false, stability: [0.85, 0.7, 0.6], collision: 0.08, collisionByOs: { "iOS/iPadOS": 0.85, Android: 0.5, macOS: 0.3 },
     value: (o) => modern(o)?.fonts.detected.length ? modern(o)!.fonts.detected : null, compare: jaccard },
-  { id: "legacy-fonts", label: "Core font probe (schema 4)", family: "os-assets", scope: "device", binary: false, stability: [0.9, 0.75, 0.65], collision: 0.25,
+  { id: "legacy-fonts", label: "Core font probe (schema 4)", family: "os-assets", scope: "device", binary: false, stability: [0.9, 0.75, 0.65], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.95, Android: 0.7, macOS: 0.6 },
     value: (o) => orNull(fp(o).fonts), compare: jaccard },
-  { id: "emoji-version", label: "Emoji font release", family: "os-assets", scope: "device", binary: true, stability: [0.97, 0.92, 0.85], collision: 0.4,
+  { id: "emoji-version", label: "Emoji font release", family: "os-assets", scope: "device", binary: true, stability: [0.97, 0.92, 0.85], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.6, macOS: 0.8 },
     value: (o) => orNull(modern(o)?.emoji.maxVersion ?? null) },
-  { id: "emoji-metrics", label: "Emoji glyph metrics", family: "os-assets", scope: "device", binary: false, stability: [0.95, 0.8, 0.55], collision: 0.25,
+  { id: "emoji-metrics", label: "Emoji glyph metrics", family: "os-assets", scope: "device", binary: false, stability: [0.95, 0.8, 0.55], collision: 0.25, collisionByOs: { "iOS/iPadOS": 0.9, Android: 0.6, macOS: 0.9 },
     value: (o) => orNull(modern(o)?.emoji.widths ?? null), compare: vectorAgreement(0.5) },
-  { id: "writing-systems", label: "Writing-system glyph support", family: "os-assets", scope: "device", binary: false, stability: [0.95, 0.85, 0.75], collision: 0.4,
+  { id: "writing-systems", label: "Writing-system glyph support", family: "os-assets", scope: "device", binary: false, stability: [0.95, 0.85, 0.75], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.95, Android: 0.8, macOS: 0.95 },
     value: (o) => orNull(fp(o).ndss2017?.writingSystems.supported ?? null), compare: jaccard },
-  { id: "local-voices", label: "Local speech voices", family: "os-assets", scope: "device", binary: false, stability: [0.95, 0.75, 0.6], collision: 0.2,
+  { id: "local-voices", label: "Local speech voices", family: "os-assets", scope: "device", binary: false, stability: [0.95, 0.75, 0.6], collision: 0.2, collisionByOs: { "iOS/iPadOS": 0.5, Android: 0.4, macOS: 0.4 },
     value: (o) => orNull(modern(o)?.voices.local ?? null), compare: jaccard },
-  { id: "generic-fonts", label: "Default generic font metrics", family: "os-assets", scope: "engine", binary: false, stability: [0.95, 0.75, 0.5], collision: 0.3,
+  { id: "generic-fonts", label: "Default generic font metrics", family: "os-assets", scope: "engine", binary: false, stability: [0.95, 0.75, 0.5], collision: 0.3, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.5, macOS: 0.7 },
     value: (o) => { const widths = modern(o)?.systemStyle.genericWidths; return widths && Object.keys(widths).length ? Object.keys(widths).sort().map((key) => widths[key]) : null; },
     compare: vectorAgreement(0.5) },
 
@@ -237,38 +255,38 @@ export const FEATURES: FeatureSpec[] = [
     value: (o) => { const intl = modern(o)?.intl; return intl ? [intl.locale, intl.calendar, intl.numberingSystem, intl.hourCycle] : null; } },
 
   // Audio hardware
-  { id: "audio-destination", label: "Audio output sample rate / channels", family: "audio-hw", scope: "device", binary: true, stability: [0.97, 0.85, 0.8], collision: 0.5,
+  { id: "audio-destination", label: "Audio output sample rate / channels", family: "audio-hw", scope: "device", binary: true, stability: [0.97, 0.85, 0.8], collision: 0.5, collisionByOs: { "iOS/iPadOS": 0.9, macOS: 0.7 },
     value: (o) => { const destination = fp(o).ndss2017?.audioDestination; return destination?.sampleRate ? [destination.sampleRate, destination.maxChannelCount ?? -1] : null; } },
-  { id: "media-devices", label: "Media device counts", family: "audio-hw", scope: "device", binary: true, stability: [0.9, 0.7, 0.6], collision: 0.5,
+  { id: "media-devices", label: "Media device counts", family: "audio-hw", scope: "device", binary: true, stability: [0.9, 0.7, 0.6], collision: 0.5, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.6 },
     value: (o) => { const devices = modern(o)?.mediaDevices; return devices ? [devices.audioinput, devices.videoinput, devices.audiooutput] : null; } },
 
   // Engine rendering (same engine only)
-  { id: "canvas-hash", label: "Canvas rendering hash", family: "engine-render", scope: "engine", binary: true, stability: [0.92, 0.7, 0], collision: 0.03,
+  { id: "canvas-hash", label: "Canvas rendering hash", family: "engine-render", scope: "engine", binary: true, stability: [0.92, 0.7, 0], collision: 0.03, collisionByOs: { "iOS/iPadOS": 0.5, macOS: 0.3, Android: 0.2 },
     value: (o) => orNull(fp(o).canvas.hash), protectedBy: (f) => Boolean(f.modern?.protections.canvasNoise) || f.canvas.repeatable === false },
-  { id: "canvas-grid", label: "Noise-tolerant canvas grid", family: "engine-render", scope: "engine", binary: false, stability: [0.95, 0.75, 0], collision: 0.15,
+  { id: "canvas-grid", label: "Noise-tolerant canvas grid", family: "engine-render", scope: "engine", binary: false, stability: [0.95, 0.75, 0], collision: 0.15, collisionByOs: { "iOS/iPadOS": 0.7, macOS: 0.5, Android: 0.4 },
     value: (o) => orNull(modern(o)?.canvasRobust.grid ?? null), compare: vectorAgreement(1.5) },
-  { id: "webgl-params", label: "WebGL parameters", family: "engine-render", scope: "engine", binary: true, stability: [0.95, 0.8, 0], collision: 0.08,
+  { id: "webgl-params", label: "WebGL parameters", family: "engine-render", scope: "engine", binary: true, stability: [0.95, 0.8, 0], collision: 0.08, collisionByOs: { "iOS/iPadOS": 0.8, macOS: 0.4, Android: 0.3 },
     value: (o) => orNull(fp(o).webgl.parameterHash), protectedBy: (f) => Boolean(f.modern?.protections.brave) },
-  { id: "webgl-render", label: "WebGL clear-colour render", family: "engine-render", scope: "engine", binary: true, stability: [0.97, 0.9, 0], collision: 0.4,
+  { id: "webgl-render", label: "WebGL clear-colour render", family: "engine-render", scope: "engine", binary: true, stability: [0.97, 0.9, 0], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.9 },
     value: (o) => orNull(fp(o).webgl.renderHash ?? null) },
-  { id: "audio-hash", label: "Audio DSP hash", family: "engine-render", scope: "engine", binary: true, stability: [0.92, 0.6, 0], collision: 0.05,
+  { id: "audio-hash", label: "Audio DSP hash", family: "engine-render", scope: "engine", binary: true, stability: [0.92, 0.6, 0], collision: 0.05, collisionByOs: { "iOS/iPadOS": 0.7, macOS: 0.5, Android: 0.3 },
     value: (o) => fp(o).audio?.status === "collected" ? fp(o).audio!.hash : null, protectedBy: (f) => Boolean(f.modern?.protections.audioNoise) },
-  { id: "audio-summary", label: "Audio DSP summary (rounded)", family: "engine-render", scope: "engine", binary: true, stability: [0.95, 0.6, 0], collision: 0.08,
+  { id: "audio-summary", label: "Audio DSP summary (rounded)", family: "engine-render", scope: "engine", binary: true, stability: [0.95, 0.6, 0], collision: 0.08, collisionByOs: { "iOS/iPadOS": 0.7, macOS: 0.5, Android: 0.3 },
     value: (o) => orNull(modern(o)?.audioRobust.summary ?? null), protectedBy: (f) => Boolean(f.modern?.protections.audioNoise) },
-  { id: "math", label: "JS math library", family: "engine-render", scope: "engine", binary: true, stability: [0.99, 0.9, 0], collision: 0.6,
+  { id: "math", label: "JS math library", family: "engine-render", scope: "engine", binary: true, stability: [0.99, 0.9, 0], collision: 0.6, collisionByOs: { "iOS/iPadOS": 0.8, macOS: 0.8, Android: 0.8 },
     value: (o) => orNull(modern(o)?.math.hash ?? null) },
-  { id: "ndss-tasks", label: "NDSS 2017 task hashes", family: "engine-render", scope: "engine", binary: false, stability: [0.9, 0.6, 0], collision: 0.1,
+  { id: "ndss-tasks", label: "NDSS 2017 task hashes", family: "engine-render", scope: "engine", binary: false, stability: [0.9, 0.6, 0], collision: 0.1, collisionByOs: { "iOS/iPadOS": 0.6, macOS: 0.4, Android: 0.3 },
     value: (o) => { const tasks = fp(o).ndss2017?.tasks.filter((task) => task.status === "collected"); return tasks?.length ? tasks.map((task) => `${task.id}:${task.hash.slice(0, 16)}`) : null; },
     compare: jaccard },
 
   // Browser configuration (same browser family only)
   { id: "browser-version", label: "Browser major version", family: "browser-config", scope: "browser", binary: false, stability: [0.85, 0, 0], collision: 0.25,
     value: (o) => Number(fp(o).browserMajor) || null, compare: (a, b) => Number(a) === Number(b) ? 1 : Math.abs(Number(a) - Number(b)) <= 2 ? 0.9 : 0.3 },
-  { id: "capabilities", label: "API capability set", family: "browser-config", scope: "browser", binary: false, stability: [0.95, 0, 0], collision: 0.4,
+  { id: "capabilities", label: "API capability set", family: "browser-config", scope: "browser", binary: false, stability: [0.95, 0, 0], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.9 },
     value: (o) => orNull(fp(o).capabilities), compare: jaccard },
-  { id: "codecs", label: "Media codec set", family: "browser-config", scope: "browser", binary: false, stability: [0.97, 0, 0], collision: 0.5,
+  { id: "codecs", label: "Media codec set", family: "browser-config", scope: "browser", binary: false, stability: [0.97, 0, 0], collision: 0.5, collisionByOs: { "iOS/iPadOS": 0.9 },
     value: (o) => orNull(fp(o).mediaCapabilities ?? null), compare: jaccard },
-  { id: "system-colors", label: "CSS system colours", family: "browser-config", scope: "browser", binary: true, stability: [0.9, 0, 0], collision: 0.4,
+  { id: "system-colors", label: "CSS system colours", family: "browser-config", scope: "browser", binary: true, stability: [0.9, 0, 0], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.9 },
     value: (o) => { const colors = modern(o)?.systemStyle.colors; return colors && Object.keys(colors).length ? Object.keys(colors).sort().map((key) => colors[key]) : null; } },
 
   // Network context (weak: households, offices, and labs share egress)
@@ -308,16 +326,35 @@ function ipPrefix(ip: string | undefined): string | null {
 
 const CHROMIUM = new Set(["Chrome", "Edge", "Opera", "Brave", "Samsung", "Vivaldi"]);
 
+function isMobile(fingerprint: FingerprintData): boolean {
+  return MOBILE_OS.has(fingerprint.osFamily);
+}
+
+/** Brave presents a Chrome user agent; its own API flag gives it away. */
+function isBrave(fingerprint: FingerprintData): boolean {
+  return fingerprint.browserFamily === "Brave" || Boolean(fingerprint.modern?.protections.brave);
+}
+
+export function browserOf(fingerprint: FingerprintData): string {
+  return isBrave(fingerprint) ? "Brave" : fingerprint.browserFamily;
+}
+
 export function engineOf(fingerprint: FingerprintData): string {
-  if (fingerprint.browserFamily === "Firefox") return "gecko";
-  if (fingerprint.browserFamily === "Safari" || fingerprint.osFamily === "iOS/iPadOS") return "webkit";
-  if (CHROMIUM.has(fingerprint.browserFamily)) return "blink";
-  return fingerprint.browserFamily.toLowerCase();
+  const browser = browserOf(fingerprint);
+  if (browser === "Firefox" && fingerprint.osFamily !== "iOS/iPadOS") return "gecko";
+  if (browser === "Safari" || fingerprint.osFamily === "iOS/iPadOS") return "webkit";
+  if (CHROMIUM.has(browser)) return "blink";
+  return browser.toLowerCase();
 }
 
 export function comparisonContext(a: FingerprintData, b: FingerprintData): ComparisonContext {
-  if (a.browserFamily === b.browserFamily) return "same-browser";
+  if (browserOf(a) === browserOf(b)) return "same-browser";
   return engineOf(a) === engineOf(b) ? "same-engine" : "cross-browser";
+}
+
+/** Pairs on the same OS are scored against that OS's own collision rates. */
+function stratumOf(a: FingerprintData, b: FingerprintData): OsStratum | null {
+  return a.osFamily === b.osFamily && OS_STRATA.has(a.osFamily) ? (a.osFamily as OsStratum) : null;
 }
 
 function eligible(spec: FeatureSpec, context: ComparisonContext): boolean {
@@ -338,6 +375,8 @@ interface FeatureCounts {
   /** same[contextIndex][bin] */
   same: number[][];
   diff: number[];
+  /** Different-device pairs that share an OS, per OS. */
+  diffByOs: Record<string, number[]>;
 }
 
 export interface LinkageModel {
@@ -380,7 +419,12 @@ export interface LinkageResult {
 }
 
 function emptyCounts(): FeatureCounts {
-  return { same: CONTEXTS.map(() => [0, 0, 0, 0]), diff: [0, 0, 0, 0] };
+  return { same: CONTEXTS.map(() => [0, 0, 0, 0]), diff: [0, 0, 0, 0], diffByOs: {} };
+}
+
+function addDiff(counts: FeatureCounts, stratum: string | null, bin: number, delta: number): void {
+  counts.diff[bin] += delta;
+  if (stratum) (counts.diffByOs[stratum] ??= [0, 0, 0, 0])[bin] += delta;
 }
 
 function binOf(similarity: number): number {
@@ -394,18 +438,23 @@ function priorSame(spec: FeatureSpec, context: ComparisonContext): number[] {
   return [stability, rest * 0.45, rest * 0.33, rest * 0.22];
 }
 
-function priorDiff(spec: FeatureSpec): number[] {
-  const collision = Math.min(0.95, Math.max(0.005, spec.collision));
+function priorDiff(spec: FeatureSpec, stratum: OsStratum | null): number[] {
+  const configured = stratum ? spec.collisionByOs?.[stratum] ?? spec.collisionByOs?.["*"] : undefined;
+  const collision = Math.min(0.95, Math.max(0.005, configured ?? spec.collision));
   if (spec.binary) return [collision, 0, 0, 1 - collision];
   const rest = 1 - collision;
   return [collision, rest * 0.12, rest * 0.28, rest * 0.6];
 }
 
-function featureLlr(spec: FeatureSpec, context: ComparisonContext, bin: number, same: number[], diff: number[]): number {
+function featureLlr(spec: FeatureSpec, context: ComparisonContext, stratum: OsStratum | null, bin: number, counts: FeatureCounts): number {
+  const same = counts.same[contextIndex(context)];
+  // Same-OS pairs use only same-OS impostors: cross-OS pairs would make
+  // matches on uniform platforms look far rarer than they are.
+  const diff = stratum ? counts.diffByOs[stratum] || [0, 0, 0, 0] : counts.diff;
   const sameTotal = same.reduce((sum, value) => sum + value, 0);
   const diffTotal = diff.reduce((sum, value) => sum + value, 0);
   const sameProbability = (same[bin] + PRIOR_STRENGTH * priorSame(spec, context)[bin]) / (sameTotal + PRIOR_STRENGTH);
-  const diffProbability = (diff[bin] + PRIOR_STRENGTH * priorDiff(spec)[bin]) / (diffTotal + PRIOR_STRENGTH);
+  const diffProbability = (diff[bin] + PRIOR_STRENGTH * priorDiff(spec, stratum)[bin]) / (diffTotal + PRIOR_STRENGTH);
   const llr = Math.log(Math.max(sameProbability, 1e-4) / Math.max(diffProbability, 1e-4));
   return Math.max(-LLR_LIMIT, Math.min(LLR_LIMIT, llr));
 }
@@ -433,6 +482,7 @@ function extract(observation: ResearchObservation): Extracted {
 
 interface PairBins {
   context: ComparisonContext;
+  stratum: OsStratum | null;
   /** -1 unavailable, -2 protected, -3 out of scope, otherwise the bin index. */
   bins: Int8Array;
   similarities: Float32Array;
@@ -454,7 +504,7 @@ function comparePair(a: Extracted, b: Extracted): PairBins {
     similarities[index] = similarity;
     bins[index] = binOf(similarity);
   });
-  return { context, bins, similarities };
+  return { context, stratum: stratumOf(a.observation.fingerprint, b.observation.fingerprint), bins, similarities };
 }
 
 /** Deterministic pseudo-random pair sampling so evaluations are reproducible. */
@@ -492,7 +542,7 @@ export function trainLinkageModel(observations: ResearchObservation[], options: 
         const bin = pair.bins[index];
         if (bin < 0) return;
         if (same) counts[spec.id].same[contextIndex(pair.context)][bin] += 1;
-        else counts[spec.id].diff[bin] += 1;
+        else addDiff(counts[spec.id], pair.stratum, bin, 1);
       });
     }
   }
@@ -536,7 +586,7 @@ function aggregate(pair: PairBins, counts: Record<string, FeatureCounts>) {
     const bin = pair.bins[index];
     if (bin < 0) return;
     const featureCounts = counts[spec.id] || emptyCounts();
-    const llr = featureLlr(spec, pair.context, bin, featureCounts.same[contextIndex(pair.context)], featureCounts.diff);
+    const llr = featureLlr(spec, pair.context, pair.stratum, bin, featureCounts);
     llrs[index] = llr;
     raw.set(spec.family, (raw.get(spec.family) || 0) + llr);
     used += 1;
@@ -681,7 +731,7 @@ export function evaluateLinkage(observations: ResearchObservation[], options: Tr
         if (bin < 0) return;
         for (const target of targets) {
           if (same) target[spec.id].same[contextIndex(pair.context)][bin] += 1;
-          else target[spec.id].diff[bin] += 1;
+          else addDiff(target[spec.id], pair.stratum, bin, 1);
         }
       });
     }
@@ -755,17 +805,26 @@ function leaveOut(
   const output: Record<string, FeatureCounts> = {};
   for (const spec of FEATURES) {
     const base = total[spec.id];
-    const counts: FeatureCounts = { same: base.same.map((row) => [...row]), diff: [...base.diff] };
+    const counts: FeatureCounts = {
+      same: base.same.map((row) => [...row]),
+      diff: [...base.diff],
+      diffByOs: Object.fromEntries(Object.entries(base.diffByOs).map(([os, row]) => [os, [...row]])),
+    };
+    const applyDiff = (source: FeatureCounts, sign: number) => {
+      for (let bin = 0; bin < 4; bin += 1) counts.diff[bin] += sign * source.diff[bin];
+      for (const [os, row] of Object.entries(source.diffByOs)) {
+        const target = counts.diffByOs[os] ??= [0, 0, 0, 0];
+        for (let bin = 0; bin < 4; bin += 1) target[bin] += sign * row[bin];
+      }
+    };
     for (const label of labelsOut) {
       const same = sameByLabel.get(label)?.[spec.id];
       const diff = diffByLabel.get(label)?.[spec.id];
-      for (let bin = 0; bin < 4; bin += 1) {
-        if (same) for (let context = 0; context < CONTEXTS.length; context += 1) counts.same[context][bin] -= same.same[context][bin];
-        if (diff) counts.diff[bin] -= diff.diff[bin];
-      }
+      if (same) for (let bin = 0; bin < 4; bin += 1) for (let context = 0; context < CONTEXTS.length; context += 1) counts.same[context][bin] -= same.same[context][bin];
+      if (diff) applyDiff(diff, -1);
     }
     // Pairs between the two excluded devices were subtracted twice above.
-    if (pairBucket) for (let bin = 0; bin < 4; bin += 1) counts.diff[bin] += pairBucket[spec.id].diff[bin];
+    if (pairBucket) applyDiff(pairBucket[spec.id], 1);
     output[spec.id] = counts;
   }
   return output;
@@ -821,23 +880,24 @@ export interface DeviceCluster {
 }
 
 /**
- * FP-STALKER-style linking: each observation joins its strongest neighbour
- * when the posterior clears the threshold. Union-find keeps it transitive.
+ * FP-STALKER-style linking: each observation joins its strongest neighbours
+ * (up to three) whose posterior clears the threshold, so a device seen in
+ * several browsers is not split by browser. Union-find keeps it transitive.
  */
-export function clusterObservations(observations: ResearchObservation[], model: LinkageModel, threshold = 0.9): DeviceCluster[] {
+export function clusterObservations(observations: ResearchObservation[], model: LinkageModel, threshold = 0.9, neighbours = 3): DeviceCluster[] {
   const rows = observations.slice(0, 300).map(extract);
   const parent = rows.map((_, index) => index);
   const find = (index: number): number => (parent[index] === index ? index : (parent[index] = find(parent[index])));
   for (let left = 0; left < rows.length; left += 1) {
-    let best = -1;
-    let bestPosterior = threshold;
+    const candidates: Array<{ index: number; posterior: number }> = [];
     for (let right = 0; right < rows.length; right += 1) {
       if (left === right) continue;
       const { total } = aggregate(comparePair(rows[left], rows[right]), model.counts);
       const posterior = posteriorFrom(total, model);
-      if (posterior >= bestPosterior) { bestPosterior = posterior; best = right; }
+      if (posterior >= threshold) candidates.push({ index: right, posterior });
     }
-    if (best >= 0) parent[find(left)] = find(best);
+    candidates.sort((a, b) => b.posterior - a.posterior);
+    for (const candidate of candidates.slice(0, neighbours)) parent[find(left)] = find(candidate.index);
   }
   const groups = new Map<number, ResearchObservation[]>();
   rows.forEach((row, index) => {
