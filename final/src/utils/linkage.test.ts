@@ -391,9 +391,46 @@ test("a different phone model is decisive, not capped away with OS evidence", ()
 
 test("Brave on a phone hides the model, so matching hardware alone cannot claim the same device", () => {
   const chrome = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Mobile Safari/537.36";
-  const brave = androidScan(phone(930), "ved", chrome, "Brave", "", 155);
+  seed = 930; // independent of the order earlier tests ran in
+  const vedPhone = { ...phone(930), timezone: "Asia/Kolkata" };
+  const sujalPhone = { ...phone(931), timezone: "Europe/Berlin" }; // only the hardware looks alike
+  const brave = androidScan(vedPhone, "ved", chrome, "Brave", "", 155);
   brave.fingerprint.modern!.protections.brave = true;
-  const other = androidScan({ ...phone(931), timezone: phone(930).timezone }, "sujal", chrome, "Chrome", "RMX3392", 155);
+  const other = androidScan(sujalPhone, "sujal", chrome, "Chrome", "RMX3392", 155);
   const result = linkObservations(brave, other, trainLinkageModel([]));
   assert.ok(result.posterior <= 0.5, `posterior ${result.posterior}`);
+});
+
+/* Third round: Brave per-session noise and mouse polling classes. */
+
+test("Brave's per-session audio offset and fake voice names do not split one laptop", () => {
+  seed = 940;
+  const device = { ...makeDevice(940), os: "Windows" };
+  const normal = observe(device, "Chrome", 1, { brave: true });
+  const privateWindow = observe(device, "Chrome", 2, { brave: true });
+  privateWindow.browserMode = "private";
+  normal.fingerprint.modern!.voices = { status: "collected", local: ["Microsoft David|en-US", "Microsoft Zira|en-US"], remoteCount: 0 };
+  privateWindow.fingerprint.modern!.voices = { status: "collected", local: ["Alva|en-US", "Microsoft David|en-US", "Microsoft Zira|en-US"], remoteCount: 0 };
+  privateWindow.fingerprint.audio = { status: "collected", hash: "brave-session-2", sampleRate: 44100 };
+  privateWindow.fingerprint.modern!.audioRobust.summary = 124.025;
+  const result = linkObservations(normal, privateWindow, trainLinkageModel([]));
+  for (const id of ["audio-hash", "audio-summary", "local-voices"]) {
+    assert.equal(result.features.find((item) => item.id === id)?.status, "protected", `${id} is randomized by Brave`);
+  }
+  assert.ok(result.posterior > 0.9, `posterior ${result.posterior}`);
+});
+
+test("two standard mouse rates are different devices, estimate jitter is not", () => {
+  seed = 950;
+  const device = { ...makeDevice(950), os: "Windows" };
+  const scan = (hz: number, run: number) => {
+    const observation = observe(device, "Chrome", run);
+    observation.fingerprint.modern!.pointer = { pollingHz: hz, samples: 200 };
+    return observation;
+  };
+  const model = trainLinkageModel([]);
+  const bin = (a: number, b: number) => linkObservations(scan(a, 1), scan(b, 2), model).features.find((item) => item.id === "pointer-polling")?.bin;
+  assert.equal(bin(159, 161), "exact");
+  assert.equal(bin(120, 125), "different");
+  assert.equal(bin(125, 125), "exact");
 });

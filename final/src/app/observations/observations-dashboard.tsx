@@ -258,9 +258,10 @@ const THRESHOLDS = [0.7, 0.8, 0.85, 0.9, 0.95, 0.99];
  */
 function SameDeviceSets({ observations, model }: { observations: ResearchObservation[]; model: LinkageModel }) {
   const [threshold, setThreshold] = useState(0.85);
+  const [joinClosest, setJoinClosest] = useState(true);
   // Every pair is scored once; regrouping at another threshold is instant.
   const pairs = useMemo(() => scoreAllPairs(observations, model), [observations, model]);
-  const sets = useMemo(() => groupSameDevice(pairs, threshold), [pairs, threshold]);
+  const sets = useMemo(() => groupSameDevice(pairs, threshold, 3, joinClosest), [pairs, threshold, joinClosest]);
   const byId = useMemo(() => new Map(pairs.observations.map((item) => [item.observationId, item])), [pairs]);
   const multi = sets.filter((set) => set.observationIds.length > 1);
   const singles = sets.length - multi.length;
@@ -276,12 +277,18 @@ function SameDeviceSets({ observations, model }: { observations: ResearchObserva
             from {pairs.observations.length} scans · {multi.length} seen more than once · {singles} seen once · you named {names}
           </p>
         </div>
-        <label className="text-sm">
-          <span className="mb-1 block text-muted">Same device if at least</span>
-          <select value={threshold} onChange={(event) => setThreshold(Number(event.target.value))} className={`${inputClass} w-32`}>
-            {THRESHOLDS.map((value) => <option key={value} value={value}>{Math.round(value * 100)}% sure</option>)}
-          </select>
-        </label>
+        <div className="space-y-2 text-sm">
+          <label className="block">
+            <span className="mb-1 block text-muted">Same device if at least</span>
+            <select value={threshold} onChange={(event) => setThreshold(Number(event.target.value))} className={`${inputClass} w-32`}>
+              {THRESHOLDS.map((value) => <option key={value} value={value}>{Math.round(value * 100)}% sure</option>)}
+            </select>
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-ink-2">
+            <input type="checkbox" checked={joinClosest} onChange={(event) => setJoinClosest(event.target.checked)} className="h-4 w-4 accent-[var(--accent)]" />
+            Also join mutual closest matches
+          </label>
+        </div>
       </div>
 
       {sets.length === 0 ? <Empty>No scans yet.</Empty> : (
@@ -296,7 +303,7 @@ function SameDeviceSets({ observations, model }: { observations: ResearchObserva
                     <span className="text-muted"> · {items.length} scan{items.length === 1 ? "" : "s"} · {set.labels.join(", ")}</span>
                   </span>
                   <span className="flex flex-wrap gap-1.5">
-                    {set.weakestLink !== null && <Pill tone="good">linked ≥ {formatShare(set.weakestLink)}</Pill>}
+                    {set.weakestLink !== null && <Pill tone={set.weakestLink >= threshold ? "good" : "accent"}>linked ≥ {formatShare(set.weakestLink)}</Pill>}
                     {set.labels.length > 1 && <Pill tone="warn">{set.labels.length} names</Pill>}
                   </span>
                 </summary>
@@ -316,7 +323,8 @@ function SameDeviceSets({ observations, model }: { observations: ResearchObserva
       )}
       <p className="mt-3 text-xs leading-5 text-muted">
         A scan joins a set when the model is at least {Math.round(threshold * 100)}% sure it is the same device as one of its closest matches.
-        “Names” shows when one set holds scans you named differently.
+        {joinClosest && " With “mutual closest matches” on, two scans that are each other's best match and more than 50% likely also join; those sets show their lower link in orange."}
+        {" "}“Names” shows when one set holds scans you named differently.
       </p>
     </Card>
   );

@@ -31,7 +31,7 @@ export const LINKAGE_MODEL_VERSION = "linkage-nb-2026.10";
 export type LinkScope = "device" | "engine" | "browser";
 export type ComparisonContext = "same-browser" | "same-engine" | "cross-browser";
 export type LinkFamily =
-  | "platform" | "model" | "hardware" | "display" | "gpu" | "gpu-timing" | "os-assets"
+  | "platform" | "model" | "defaults" | "hardware" | "display" | "gpu" | "gpu-timing" | "os-assets"
   | "locale" | "audio-hw" | "engine-render" | "browser-config" | "network";
 
 type Value = string | number | boolean | string[] | number[];
@@ -42,12 +42,15 @@ const CONTEXTS: ComparisonContext[] = ["same-browser", "same-engine", "cross-bro
 const BIN_EDGES = [0.97, 0.85, 0.5];
 const BIN_NAMES = ["exact", "close", "partial", "different"] as const;
 const PRIOR_STRENGTH = 12;
+/** Positive matches weaker than this are pooled into the capped "defaults" group. */
+const WEAK_MATCH_LLR = 0.75;
 const LLR_LIMIT = 6;
 
 export const FAMILY_CAPS: Record<LinkFamily, { positive: number; negative: number }> = {
   platform: { positive: 2.5, negative: -6 },
   // Its own group so a different phone model is never capped away by OS evidence.
   model: { positive: 3.5, negative: -9 },
+  defaults: { positive: 1.5, negative: 0 },
   hardware: { positive: 2.5, negative: -5 },
   display: { positive: 3, negative: -4.5 },
   gpu: { positive: 3.5, negative: -5 },
@@ -63,6 +66,7 @@ export const FAMILY_CAPS: Record<LinkFamily, { positive: number; negative: numbe
 export const FAMILY_LABELS: Record<LinkFamily, string> = {
   platform: "OS & platform",
   model: "Device model",
+  defaults: "Common settings (pooled)",
   hardware: "CPU, memory, input",
   display: "Display",
   gpu: "GPU identity",
@@ -208,7 +212,7 @@ export const FEATURES: FeatureSpec[] = [
   // Platform
   { id: "os", label: "Operating system", family: "platform", scope: "device", binary: true, stability: [0.995, 0.99, 0.99], collision: 0.35, collisionByOs: { "*": 0.95 },
     value: (o) => orNull(fp(o).osFamily) },
-  { id: "os-version", label: "OS version (client hints)", family: "platform", scope: "device", osDependent: true, binary: false, stability: [0.93, 0.9, 0.9], collision: 0.12, collisionByOs: { "iOS/iPadOS": 0.4, Android: 0.3, macOS: 0.35, Windows: 0.3 },
+  { id: "os-version", label: "OS version (client hints)", family: "platform", scope: "device", modelDetermined: true, osDependent: true, binary: false, stability: [0.93, 0.9, 0.9], collision: 0.12, collisionByOs: { "iOS/iPadOS": 0.4, Android: 0.3, macOS: 0.35, Windows: 0.3 },
     value: (o) => { const version = modern(o)?.clientHints?.platformVersion; return version ? version.split(".").slice(0, 2).map(Number) : null; },
     compare: (a, b) => { const [x, y] = [a as number[], b as number[]]; return x[0] !== y[0] ? 0 : x[1] === y[1] ? 1 : 0.9; } },
   { id: "architecture", label: "CPU architecture / bitness", family: "platform", scope: "device", binary: true, stability: [0.99, 0.98, 0.98], collision: 0.5, collisionByOs: { "*": 0.85 },
@@ -226,9 +230,16 @@ export const FEATURES: FeatureSpec[] = [
     // Phones switch adaptively between 48/60/90/120 Hz, so only desktops count.
     value: (o) => isMobile(fp(o)) ? null : orNull(modern(o)?.refreshRate.hz ?? null) },
   { id: "pointer-polling", label: "Pointer polling rate", family: "hardware", scope: "device", osDependent: true, binary: false, stability: [0.8, 0.75, 0.7], collision: 0.35,
-    // Estimated rates jitter (159 vs 161 Hz is one mouse), so compare with tolerance.
+    // Off-standard estimates jitter (159 vs 161 Hz is one mouse), but two
+    // different standard rates (120 vs 125 Hz) are two different devices.
     value: (o) => orNull(modern(o)?.pointer.pollingHz ?? null),
-    compare: (a, b) => { const gap = Math.abs(Number(a) - Number(b)) / Math.max(Number(a), Number(b)); return gap <= 0.06 ? 1 : gap <= 0.15 ? 0.9 : 0; } },
+    compare: (a, b) => {
+      const [x, y] = [Number(a), Number(b)];
+      if (x === y) return 1;
+      if (STANDARD_POLLING_RATES.has(x) && STANDARD_POLLING_RATES.has(y)) return 0;
+      const gap = Math.abs(x - y) / Math.max(x, y);
+      return gap <= 0.06 ? 1 : gap <= 0.15 ? 0.9 : 0;
+    } },
 
   // Display
   { id: "screen", label: "Physical screen resolution", family: "display", scope: "device", protectedBy: isBraveDesktop, modelDetermined: true, binary: false, stability: [0.95, 0.94, 0.92], collision: 0.12, collisionByOs: { "iOS/iPadOS": 0.3, Android: 0.15, macOS: 0.3 },
@@ -287,8 +298,11 @@ export const FEATURES: FeatureSpec[] = [
     value: (o) => orNull(modern(o)?.emoji.widths ?? null), compare: vectorAgreement(0.5) },
   { id: "writing-systems", label: "Writing-system glyph support", family: "os-assets", scope: "device", modelDetermined: true, osDependent: true, binary: false, stability: [0.95, 0.85, 0.75], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.95, Android: 0.8, macOS: 0.95 },
     value: (o) => orNull(fp(o).ndss2017?.writingSystems.supported ?? null), compare: jaccard },
-  { id: "local-voices", label: "Local speech voices", family: "os-assets", scope: "device", osDependent: true, binary: false, stability: [0.95, 0.75, 0.6], collision: 0.2, collisionByOs: { "iOS/iPadOS": 0.5, Android: 0.4, macOS: 0.4 },
-    value: (o) => orNull(modern(o)?.voices.local ?? null), compare: jaccard },
+    // Brave injects fake voice names. On same-model phones the default lists are
+  // identical and one or two names are the only personal signal, so a Brave
+  // list cannot be compared at all.
+{ id: "local-voices", label: "Local speech voices", family: "os-assets", scope: "device", osDependent: true, binary: false, stability: [0.95, 0.75, 0.6], collision: 0.2, collisionByOs: { "iOS/iPadOS": 0.5, Android: 0.4, macOS: 0.4 },
+    value: (o) => orNull(modern(o)?.voices.local ?? null), compare: jaccard, protectedBy: isBrave },
   { id: "generic-fonts", label: "Default generic font metrics", family: "os-assets", scope: "engine", modelDetermined: true, osDependent: true, binary: false, stability: [0.95, 0.75, 0.5], collision: 0.3, collisionByOs: { "iOS/iPadOS": 0.8, Android: 0.5, macOS: 0.7 },
     value: (o) => { const widths = modern(o)?.systemStyle.genericWidths; return widths && Object.keys(widths).length ? Object.keys(widths).sort().map((key) => widths[key]) : null; },
     compare: vectorAgreement(0.5) },
@@ -319,9 +333,11 @@ export const FEATURES: FeatureSpec[] = [
   { id: "webgl-render", label: "WebGL clear-colour render", family: "engine-render", scope: "engine", modelDetermined: true, binary: true, stability: [0.97, 0.9, 0], collision: 0.4, collisionByOs: { "iOS/iPadOS": 0.95, macOS: 0.9 },
     value: (o) => orNull(fp(o).webgl.renderHash ?? null) },
   { id: "audio-hash", label: "Audio DSP hash", family: "engine-render", scope: "engine", modelDetermined: true, binary: true, stability: [0.92, 0.6, 0], collision: 0.05, collisionByOs: { "iOS/iPadOS": 0.7, macOS: 0.5, Android: 0.3 },
-    value: (o) => fp(o).audio?.status === "collected" ? fp(o).audio!.hash : null, protectedBy: (f) => Boolean(f.modern?.protections.audioNoise) },
+    value: (o) => fp(o).audio?.status === "collected" ? fp(o).audio!.hash : null, protectedBy: (f) => Boolean(f.modern?.protections.audioNoise) || isBrave(f) },
   { id: "audio-summary", label: "Audio DSP summary (rounded)", family: "engine-render", scope: "engine", modelDetermined: true, binary: true, stability: [0.95, 0.6, 0], collision: 0.08, collisionByOs: { "iOS/iPadOS": 0.7, macOS: 0.5, Android: 0.3 },
-    value: (o) => orNull(modern(o)?.audioRobust.summary ?? null), protectedBy: (f) => Boolean(f.modern?.protections.audioNoise) },
+    // Brave shifts audio by a per-session amount, so repeated renders within one
+    // scan still agree and the noise check cannot see it.
+    value: (o) => orNull(modern(o)?.audioRobust.summary ?? null), protectedBy: (f) => Boolean(f.modern?.protections.audioNoise) || isBrave(f) },
   { id: "math", label: "JS math library", family: "engine-render", scope: "engine", modelDetermined: true, binary: true, stability: [0.99, 0.9, 0], collision: 0.6, collisionByOs: { "iOS/iPadOS": 0.8, macOS: 0.8, Android: 0.8 },
     value: (o) => orNull(modern(o)?.math.hash ?? null) },
   { id: "ndss-tasks", label: "NDSS 2017 task hashes", family: "engine-render", scope: "engine", protectedBy: isBrave, modelDetermined: true, binary: false, stability: [0.9, 0.6, 0], collision: 0.1, collisionByOs: { "iOS/iPadOS": 0.6, macOS: 0.4, Android: 0.3 },
@@ -345,6 +361,8 @@ export const FEATURES: FeatureSpec[] = [
 
 const FEATURE_BY_ID = new Map(FEATURES.map((spec) => [spec.id, spec]));
 const DEVICE_MODEL_INDEX = FEATURES.findIndex((spec) => spec.id === "device-model");
+/** Must match the classes the collector snaps estimates to. */
+const STANDARD_POLLING_RATES = new Set([60, 90, 120, 125, 250, 500, 1000, 2000, 4000, 8000]);
 const HARDWARE_FAMILIES = new Set<LinkFamily>(["hardware", "display", "gpu", "platform"]);
 
 /**
@@ -634,51 +652,98 @@ export interface TrainingOptions {
   prior?: number;
 }
 
-export function trainLinkageModel(observations: ResearchObservation[], options: TrainingOptions = {}): LinkageModel {
-  const rows = observations.slice(0, options.maxObservations ?? 400).map(extract);
-  const counts: Record<string, FeatureCounts> = Object.fromEntries(FEATURES.map((spec) => [spec.id, emptyCounts()]));
-  const samePairs: Record<ComparisonContext, number> = { "same-browser": 0, "same-engine": 0, "cross-browser": 0 };
-  let differentPairs = 0;
+interface CollectedPairs {
+  labels: string[];
+  pairs: Array<{ left: number; right: number; pair: PairBins; same: boolean }>;
+  totalCounts: Record<string, FeatureCounts>;
+  sameByLabel: Map<string, Record<string, FeatureCounts>>;
+  diffByLabel: Map<string, Record<string, FeatureCounts>>;
+  diffByLabelPair: Map<string, Record<string, FeatureCounts>>;
+  samePairs: Record<ComparisonContext, number>;
+  differentPairs: number;
+  sampled: boolean;
+}
+
+/**
+ * Compares every same-device pair and a deterministic sample of
+ * different-device pairs, and keeps per-device count buckets so that any
+ * pair can later be scored by a model that never saw either of its devices.
+ */
+function collectPairs(rows: Extracted[], maxDifferentPairs: number): CollectedPairs {
+  const labels = rows.map((row) => row.observation.deviceLabel);
   const totalPairs = (rows.length * (rows.length - 1)) / 2;
-  const keep = sampler(totalPairs, options.maxDifferentPairs ?? 30_000);
-  const scoredPairs: Array<{ llr: number; label: 0 | 1 }> = [];
-  const pairBins: Array<{ pair: PairBins; label: 0 | 1 }> = [];
+  const keep = sampler(totalPairs, maxDifferentPairs);
+  const collected: CollectedPairs = {
+    labels,
+    pairs: [],
+    totalCounts: Object.fromEntries(FEATURES.map((spec) => [spec.id, emptyCounts()])),
+    sameByLabel: new Map(),
+    diffByLabel: new Map(),
+    diffByLabelPair: new Map(),
+    samePairs: { "same-browser": 0, "same-engine": 0, "cross-browser": 0 },
+    differentPairs: 0,
+    sampled: totalPairs > maxDifferentPairs,
+  };
+  const bucket = (map: Map<string, Record<string, FeatureCounts>>, key: string) => {
+    if (!map.has(key)) map.set(key, Object.fromEntries(FEATURES.map((spec) => [spec.id, emptyCounts()])));
+    return map.get(key)!;
+  };
   let pairIndex = 0;
   for (let left = 0; left < rows.length; left += 1) {
     for (let right = left + 1; right < rows.length; right += 1, pairIndex += 1) {
-      const same = rows[left].observation.deviceLabel === rows[right].observation.deviceLabel;
+      const same = labels[left] === labels[right];
       if (!same && !keep(pairIndex)) continue;
       const pair = comparePair(rows[left], rows[right]);
-      pairBins.push({ pair, label: same ? 1 : 0 });
-      if (same) samePairs[pair.context] += 1;
-      else differentPairs += 1;
+      collected.pairs.push({ left, right, pair, same });
+      if (same) collected.samePairs[pair.context] += 1;
+      else collected.differentPairs += 1;
+      const targets = same
+        ? [collected.totalCounts, bucket(collected.sameByLabel, labels[left])]
+        : [collected.totalCounts, bucket(collected.diffByLabel, labels[left]), bucket(collected.diffByLabel, labels[right]), bucket(collected.diffByLabelPair, labelPairKey(labels[left], labels[right]))];
       FEATURES.forEach((spec, index) => {
         const bin = pair.bins[index];
         if (bin < 0) return;
-        if (same) counts[spec.id].same[contextIndex(pair.context)][bin] += 1;
-        else addDiff(counts[spec.id], pair.stratum, bin, 1);
+        for (const target of targets) {
+          if (same) target[spec.id].same[contextIndex(pair.context)][bin] += 1;
+          else addDiff(target[spec.id], pair.stratum, bin, 1);
+        }
       });
     }
   }
-  const labels = new Set(rows.map((row) => row.observation.deviceLabel)).size;
+  return collected;
+}
+
+/** Scores each collected pair with counts that exclude both of its devices. */
+function heldOutScores(collected: CollectedPairs) {
+  return collected.pairs.map(({ left, right, pair, same }) => {
+    const counts = leaveOut(collected.totalCounts, collected.labels[left], collected.labels[right], collected.sameByLabel, collected.diffByLabel, collected.diffByLabelPair);
+    return { left, right, same, context: pair.context, ...aggregate(pair, counts) };
+  });
+}
+
+export function trainLinkageModel(observations: ResearchObservation[], options: TrainingOptions = {}): LinkageModel {
+  const rows = observations.slice(0, options.maxObservations ?? 400).map(extract);
+  const collected = collectPairs(rows, options.maxDifferentPairs ?? 30_000);
+  const labels = new Set(collected.labels).size;
   const model: LinkageModel = {
     version: LINKAGE_MODEL_VERSION,
     trainedAt: new Date().toISOString(),
     observations: rows.length,
     deviceLabels: labels,
-    samePairs,
-    differentPairs,
-    counts,
+    samePairs: collected.samePairs,
+    differentPairs: collected.differentPairs,
+    counts: collected.totalCounts,
     prior: options.prior ?? openWorldPrior(labels),
     calibration: null,
   };
-  // Platt scaling needs both classes in reasonable numbers. With fewer pairs
-  // the naive-Bayes posterior is reported and explicitly marked uncalibrated.
-  const positives = pairBins.filter((item) => item.label === 1).length;
-  if (positives >= 25 && pairBins.length - positives >= 25) {
-    for (const item of pairBins) scoredPairs.push({ llr: aggregate(item.pair, model.counts).total, label: item.label });
-    const fit = plattFit(scoredPairs);
-    if (fit) model.calibration = { ...fit, trainingPositiveRate: positives / pairBins.length, pairs: pairBins.length };
+  // Platt scaling needs both classes in reasonable numbers. It is fitted on
+  // held-out scores (each pair scored without its own devices): in-sample
+  // scores are optimistic and made the fit swing with every feature change.
+  const positives = collected.pairs.filter((item) => item.same).length;
+  const negatives = collected.pairs.length - positives;
+  if (positives >= 25 && negatives >= 25) {
+    const fit = plattFit(heldOutScores(collected).map((item) => ({ llr: item.total, label: item.same ? 1 : 0 })));
+    if (fit) model.calibration = { ...fit, trainingPositiveRate: positives / collected.pairs.length, pairs: collected.pairs.length };
   }
   return model;
 }
@@ -696,6 +761,7 @@ function aggregate(pair: PairBins, counts: Record<string, FeatureCounts>) {
   const raw = new Map<LinkFamily, number>();
   const llrs = new Float64Array(FEATURES.length);
   let used = 0;
+  let weakPool = 0;
   FEATURES.forEach((spec, index) => {
     const bin = pair.bins[index];
     if (bin < 0) return;
@@ -708,9 +774,17 @@ function aggregate(pair: PairBins, counts: Record<string, FeatureCounts>) {
     // The OS itself stays outside the group: a different OS is its own evidence.
     const grouped = pair.hardwareOnly && spec.id !== "os" && (spec.modelDetermined || (!spec.osDependent && HARDWARE_FAMILIES.has(spec.family)));
     const family = grouped ? "model" : spec.family;
+    // Small positive matches (a default pixel ratio, en-US, the current
+    // browser version) are mostly one fact, "a default setup", so they are
+    // pooled and capped instead of adding up as if independent.
+    if (llr > 0 && llr < WEAK_MATCH_LLR && family !== "model") {
+      weakPool += llr;
+      return;
+    }
     raw.set(family, (raw.get(family) || 0) + llr);
     used += 1;
   });
+  if (weakPool > 0) raw.set("defaults", weakPool);
   let total = 0;
   const families = Array.from(raw.entries()).map(([family, value]) => {
     const capped = Math.max(FAMILY_CAPS[family].negative, Math.min(FAMILY_CAPS[family].positive, value));
@@ -725,10 +799,16 @@ function isInsufficient(comparableFamilies: number, used: number): boolean {
   return comparableFamilies < 3 || used < 5;
 }
 
-/** Families that actively support "same device" (not merely fail to contradict it). */
-const MIN_SUPPORTING_FAMILIES = 3;
-function supportingFamilies(families: Array<{ capped: number }>): number {
-  return families.filter((family) => family.capped >= 0.25).length;
+/**
+ * Whether the support for "same device" comes from more than a hardware
+ * look-alike. It needs at least two independent kinds of supporting evidence,
+ * at least one of them beyond the hardware/model group and the network
+ * (screen size + a shared mobile-carrier IP block is not enough). Pooled
+ * weak "defaults" matches never count as a kind of their own.
+ */
+function hasIndependentSupport(families: Array<{ family: LinkFamily; capped: number }>): boolean {
+  const supporting = families.filter((family) => family.family !== "defaults" && family.capped >= 0.25);
+  return supporting.length >= 2 && supporting.some((family) => family.family !== "model" && family.family !== "network");
 }
 
 /**
@@ -738,9 +818,9 @@ function supportingFamilies(families: Array<{ capped: number }>): number {
  * phone model (e.g. "RMX3392" on both) is a specific identifier on its own,
  * so the rule only applies when no model name matched.
  */
-function cappedPosterior(total: number, families: Array<{ capped: number }>, model: Pick<LinkageModel, "prior" | "calibration">, namedModelMatch: boolean): number {
+function cappedPosterior(total: number, families: Array<{ family: LinkFamily; capped: number }>, model: Pick<LinkageModel, "prior" | "calibration">, namedModelMatch: boolean): number {
   const posterior = posteriorFrom(total, model);
-  return !namedModelMatch && supportingFamilies(families) < MIN_SUPPORTING_FAMILIES ? Math.min(posterior, 0.5) : posterior;
+  return !namedModelMatch && !hasIndependentSupport(families) ? Math.min(posterior, 0.5) : posterior;
 }
 
 function namedModelMatches(pair: PairBins): boolean {
@@ -771,7 +851,7 @@ export function linkObservations(current: ResearchObservation, previous: Researc
   if (pair.bins.some((bin) => bin === -4)) notes.push("Both scans report their phone model, so the model name decides the hardware question; screen, GPU, rendering and system fonts are not counted again. With the same model, only personal settings, memory variant, timing and network separate two phones.");
   else if (!pair.mobile && pair.hardwareOnly) notes.push("Different operating systems: only hardware is comparable, and matching specs can mean a dual-boot machine or two laptops of the same configuration, so together they count at most as much as a model match.");
   else if (pair.mobile) notes.push("Phone signals fixed by the hardware model (screen, GPU, rendering, system fonts) are grouped as \"Device model\" and together count at most as much as a matching model name.");
-  if (!namedModelMatches(pair) && supportingFamilies(families) < MIN_SUPPORTING_FAMILIES) notes.push("Fewer than three independent kinds of evidence support a match, so the result is held at \"can't tell\" (50% at most).");
+  if (!namedModelMatches(pair) && !hasIndependentSupport(families)) notes.push("Only a hardware look-alike (and possibly the network) supports a match, so the result is held at \"can't tell\" (50% at most).");
   if (pair.context === "cross-browser") notes.push("Cross-engine comparison: only device-scope features (hardware, OS assets, display, locale, GPU identity and timing) are used.");
 
   const features: LinkageFeature[] = FEATURES.map((spec, index) => {
@@ -852,48 +932,11 @@ export interface LinkageEvaluation {
  */
 export function evaluateLinkage(observations: ResearchObservation[], options: TrainingOptions = {}): LinkageEvaluation {
   const rows = observations.slice(0, options.maxObservations ?? 300).map(extract);
-  const labels = rows.map((row) => row.observation.deviceLabel);
+  const collected = collectPairs(rows, options.maxDifferentPairs ?? 60_000);
+  const { labels, sampled } = collected;
   const deviceLabels = new Set(labels).size;
-  const totalPairs = (rows.length * (rows.length - 1)) / 2;
-  const maximum = options.maxDifferentPairs ?? 60_000;
-  const sampled = totalPairs > maximum;
-  const keep = sampler(totalPairs, maximum);
-  const pairs: Array<{ left: number; right: number; pair: PairBins; same: boolean }> = [];
-  const totalCounts: Record<string, FeatureCounts> = Object.fromEntries(FEATURES.map((spec) => [spec.id, emptyCounts()]));
-  const sameByLabel = new Map<string, Record<string, FeatureCounts>>();
-  const diffByLabel = new Map<string, Record<string, FeatureCounts>>();
-  const diffByLabelPair = new Map<string, Record<string, FeatureCounts>>();
-  const bucket = (map: Map<string, Record<string, FeatureCounts>>, key: string) => {
-    if (!map.has(key)) map.set(key, Object.fromEntries(FEATURES.map((spec) => [spec.id, emptyCounts()])));
-    return map.get(key)!;
-  };
-  let pairIndex = 0;
-  for (let left = 0; left < rows.length; left += 1) {
-    for (let right = left + 1; right < rows.length; right += 1, pairIndex += 1) {
-      const same = labels[left] === labels[right];
-      if (!same && !keep(pairIndex)) continue;
-      const pair = comparePair(rows[left], rows[right]);
-      pairs.push({ left, right, pair, same });
-      const targets = same
-        ? [totalCounts, bucket(sameByLabel, labels[left])]
-        : [totalCounts, bucket(diffByLabel, labels[left]), bucket(diffByLabel, labels[right]), bucket(diffByLabelPair, labelPairKey(labels[left], labels[right]))];
-      FEATURES.forEach((spec, index) => {
-        const bin = pair.bins[index];
-        if (bin < 0) return;
-        for (const target of targets) {
-          if (same) target[spec.id].same[contextIndex(pair.context)][bin] += 1;
-          else addDiff(target[spec.id], pair.stratum, bin, 1);
-        }
-      });
-    }
-  }
-
   const prior = options.prior ?? openWorldPrior(deviceLabels);
-  const scored = pairs.map(({ left, right, pair, same }) => {
-    const counts = leaveOut(totalCounts, labels[left], labels[right], sameByLabel, diffByLabel, diffByLabelPair);
-    const result = aggregate(pair, counts);
-    return { left, right, same, context: pair.context, total: result.total, posterior: sigmoid(logit(prior) + result.total), families: result.families };
-  });
+  const scored = heldOutScores(collected).map((item) => ({ ...item, posterior: sigmoid(logit(prior) + item.total) }));
 
   const metrics: LinkageMetrics[] = (["all", ...CONTEXTS] as Array<ComparisonContext | "all">).map((context) =>
     metricsFor(context, scored.filter((item) => context === "all" || item.context === context)));
@@ -1063,7 +1106,7 @@ export function scoreAllPairs(observations: ResearchObservation[], model: Linkag
  * not split by browser, while a single weak link cannot chain whole groups.
  * Union-find keeps membership transitive.
  */
-export function groupSameDevice(pairs: PairPosteriors, threshold = 0.85, neighbours = 3): DeviceCluster[] {
+export function groupSameDevice(pairs: PairPosteriors, threshold = 0.85, neighbours = 3, mutualBest = false): DeviceCluster[] {
   const size = pairs.observations.length;
   const parent = Array.from({ length: size }, (_, index) => index);
   const find = (index: number): number => (parent[index] === index ? index : (parent[index] = find(parent[index])));
@@ -1078,6 +1121,29 @@ export function groupSameDevice(pairs: PairPosteriors, threshold = 0.85, neighbo
     for (const candidate of candidates.slice(0, neighbours)) {
       parent[find(left)] = find(candidate.index);
       links.push([left, candidate.index, candidate.posterior]);
+    }
+  }
+  // Optionally also join two scans that are each other's closest match and
+  // more likely than not the same device. The closest match is right far more
+  // often than the absolute probability suggests when a browser (Brave)
+  // hides most signals; a "can't tell" pair (held at exactly 50%) never joins.
+  if (mutualBest) {
+    const closest = Array.from({ length: size }, (_, left) => {
+      let best = -1;
+      let bestPosterior = -1;
+      for (let right = 0; right < size; right += 1) {
+        const posterior = pairs.posteriors[left * size + right];
+        if (left !== right && posterior > bestPosterior) { best = right; bestPosterior = posterior; }
+      }
+      return best;
+    });
+    for (let left = 0; left < size; left += 1) {
+      const right = closest[left];
+      const posterior = right >= 0 ? pairs.posteriors[left * size + right] : 0;
+      if (right > left && closest[right] === left && posterior > 0.5 && posterior < threshold) {
+        parent[find(left)] = find(right);
+        links.push([left, right, posterior]);
+      }
     }
   }
   const groups = new Map<number, number[]>();
