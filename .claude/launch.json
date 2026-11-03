@@ -4,8 +4,39 @@
     {
       "name": "linkage-lab",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "final", "run", "dev", "--", "--port", "3217"],
+      "runtimeArgs": [
+        "--prefix",
+        "final",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3217"
+      ],
       "port": 3217
+    },
+    {
+      "name": "vpn-lab-local",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "DATABASE_URL_POOLER= DATABASE_URL= npm --prefix final-vpn run dev -- --port 3218"
+      ],
+      "port": 3218
+    },
+    {
+      "name": "vpn-lab",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "final-vpn",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3218"
+      ],
+      "port": 3218
     }
   ]
 }
