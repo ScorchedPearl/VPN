@@ -177,6 +177,8 @@ export interface ObservationSubmission {
     exitCountry: string;
   };
   scanChallenge: string;
+  /** Local development only: the browser's own public address, used when no trusted ingress exists. */
+  devPublicIp?: string;
 }
 
 const FONTS_TO_CHECK = [

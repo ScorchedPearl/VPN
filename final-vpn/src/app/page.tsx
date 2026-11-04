@@ -24,7 +24,7 @@ import {
   type ResearchObservation,
   type VpnGroundTruth,
 } from "@/utils/fingerprint";
-import { collectConsentedLocation, collectNetworkPathProbes, measureClientLatency, type ServerNetworkData } from "@/utils/network";
+import { collectConsentedLocation, collectNetworkPathProbes, detectBrowserPublicIps, measureClientLatency, type ServerNetworkData } from "@/utils/network";
 import { startPointerObserver } from "@/utils/modern-signals";
 import type { ObservationMatch } from "@/utils/similarity";
 import type { RiskAssessment } from "@/utils/risk";
@@ -153,6 +153,8 @@ export default function Home() {
       const networkResult = await networkResponse.json() as ServerNetworkData;
       // Latency first, on an idle page: GPU timing probes would inflate it.
       const latency = await measureClientLatency();
+      // Local development has no trusted ingress, so the browser reports its own address.
+      const devAddresses = process.env.NODE_ENV !== "production" && !networkResult.trusted ? await detectBrowserPublicIps() : null;
       const [clientResult, pathProbes, deviceLocation] = await Promise.all([
         generateClientFingerprint({ stunUrl: networkResult.probeConfiguration?.stunUrl, highEntropyResearch, hardwareTimingProbes, latencyLandmarks }),
         collectNetworkPathProbes(networkResult.probeConfiguration),
@@ -173,6 +175,7 @@ export default function Home() {
         studyId: "vpn-fingerprint-pilot",
         groundTruthDetails: { providerCode, protocol: vpnProtocol, exitCountry },
         scanChallenge: networkResult.scanChallenge || "",
+        ...(devAddresses && (devAddresses.ipv4 || devAddresses.ipv6) ? { devPublicIp: devAddresses.ipv4 || devAddresses.ipv6 || undefined } : {}),
       };
 
       const observationResponse = await fetch("/api/observations", {

@@ -40,7 +40,7 @@ export interface IpVerdict {
   evidence: RiskEvidence[];
 }
 
-const HOSTING_NAME = /\b(hosting|datacenter|data center|cloud|vps|colo(cation)?|amazon|aws|google|microsoft|azure|digitalocean|linode|akamai|vultr|choopa|ovh|hetzner|leaseweb|contabo|cdn77|datapacket|zenlayer|quadranet|psychz|clouvider|oracle|alibaba|tencent)\b/i;
+const HOSTING_NAME = /(vps)|\b(hosting|datacenter|data center|cloud|colo(cation)?|amazon|aws|google|microsoft|azure|digitalocean|linode|akamai|vultr|choopa|ovh|hetzner|leaseweb|contabo|cdn77|datapacket|zenlayer|quadranet|psychz|clouvider|oracle|alibaba|tencent)\b/i;
 const VPN_NAME = /\b(vpn|nordvpn|expressvpn|mullvad|proton|surfshark|cyberghost|private internet access|ipvanish|m247|tefincom|packethub|windscribe|hide\.me|ivpn|tunnelbear|privatevpn)\b/i;
 
 function add(evidence: RiskEvidence[], id: string, group: RiskEvidence["group"], label: string, detail: string, logLikelihoodRatio: number, strength: RiskEvidence["strength"], source: string) {

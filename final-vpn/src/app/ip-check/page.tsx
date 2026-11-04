@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Database, Globe2, ListChecks, Loader2, Radar, Search, ShieldCheck } from "lucide-react";
 import type { IpIntel, IpVerdict } from "@/utils/ip-intel";
+import { detectBrowserPublicIps } from "@/utils/network";
 import { Card, DivergingBar, Empty, Pill, Row, inputClass, toneText, type Tone } from "@/components/ui";
 
 interface CheckResponse {
@@ -21,6 +22,7 @@ export default function IpCheckPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [atlasNote, setAtlasNote] = useState<string | null>(null);
+  const [mine, setMine] = useState<{ ipv4: string | null; ipv6: string | null } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -62,6 +64,18 @@ export default function IpCheckPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  /** The browser reports its own addresses, so a VPN that covers only the browser is seen correctly. */
+  async function checkMine() {
+    setLoading(true);
+    setError(null);
+    const found = await detectBrowserPublicIps();
+    setMine(found);
+    setLoading(false);
+    const first = found.ipv4 || found.ipv6;
+    if (first) void check(first);
+    else void check("me");
   }
 
   async function startAtlas(force: boolean) {
@@ -111,9 +125,19 @@ export default function IpCheckPage() {
               <button type="submit" disabled={loading || !input.trim()} className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:bg-accent-strong disabled:opacity-50">
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Check
               </button>
-              <button type="button" disabled={loading} onClick={() => void check("me")} className="rounded-xl border border-line-strong px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-surface-2 disabled:opacity-50">Use my IP</button>
+              <button type="button" disabled={loading} onClick={() => void checkMine()} className="rounded-xl border border-line-strong px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-surface-2 disabled:opacity-50">Use my IP</button>
             </div>
           </form>
+          {mine && (mine.ipv4 || mine.ipv6) && (
+            <p className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
+              Your browser&apos;s addresses:
+              {(["ipv4", "ipv6"] as const).map((family) => (
+                mine[family]
+                  ? <button key={family} type="button" onClick={() => void check(mine[family]!)} className="rounded-full border border-line-strong px-2.5 py-0.5 font-mono text-ink transition hover:bg-surface-2">{family === "ipv4" ? "IPv4" : "IPv6"} {mine[family]}</button>
+                  : <span key={family} className="rounded-full bg-surface-2 px-2.5 py-0.5">{family === "ipv4" ? "IPv4" : "IPv6"}: none (not detected)</span>
+              ))}
+            </p>
+          )}
           {error && <p role="alert" className="mt-3 text-sm text-bad">{error}</p>}
         </Card>
 

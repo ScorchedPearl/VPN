@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     let serverNetwork = await observeServerNetwork(request);
     if (!verifyScanChallenge(payload.scanChallenge, serverNetwork, request.headers)) return Response.json({ error: "Expired or invalid scan challenge" }, { status: 400 });
     if (!allowObservation(serverNetwork)) return Response.json({ error: "Research capture rate limit exceeded" }, { status: 429 });
-    serverNetwork = await withDevNetworkFallback(request, serverNetwork);
+    serverNetwork = await withDevNetworkFallback(request, serverNetwork, typeof payload.devPublicIp === "string" ? payload.devPublicIp : undefined);
     serverNetwork.clientConsistency = compareClientClaims(payload, serverNetwork.headers);
     const pathProbes = await Promise.all(payload.pathProbes.slice(0, 2).map((probe) => verifyAndEnrichProbe(probe)));
     const serverReceivedAt = new Date().toISOString();

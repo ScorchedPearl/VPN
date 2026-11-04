@@ -171,3 +171,27 @@ export async function collectConsentedLocation(enabled: boolean): Promise<Device
 function emptyProbe(kind: PathProbeKind, status: NetworkPathProbe["status"]): NetworkPathProbe {
   return { kind, status, ip: "Unknown", ipFamily: "unknown", observedAt: new Date().toISOString(), token: "", trusted: false };
 }
+
+async function fetchAddress(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url, { cache: "no-store", credentials: "omit", signal: AbortSignal.timeout(6_000) });
+    if (!response.ok) return null;
+    const value = ((await response.json()) as { ip?: unknown }).ip;
+    return typeof value === "string" && value.length <= 45 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The public addresses this browser itself uses, per family. A VPN may carry
+ * only one family (or split them), and a local dev server's own connection can
+ * bypass the VPN, so only the browser can say which addresses a visitor has.
+ */
+export async function detectBrowserPublicIps(): Promise<{ ipv4: string | null; ipv6: string | null }> {
+  const [ipv4, ipv6] = await Promise.all([
+    fetchAddress("https://api.ipify.org?format=json"),
+    fetchAddress("https://api6.ipify.org?format=json"),
+  ]);
+  return { ipv4, ipv6 };
+}

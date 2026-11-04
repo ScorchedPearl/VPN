@@ -224,13 +224,22 @@ export async function resolveMyIp(request: Request): Promise<string | null> {
   const canonical = canonicalClientAddress(request.headers);
   if (canonical.isPublicIp) return canonical.ip;
   if (process.env.NODE_ENV === "production" || !process.env.IPINFO_TOKEN) return null;
-  try {
-    const response = await fetch("https://ipinfo.io/json", { headers: { authorization: `Bearer ${process.env.IPINFO_TOKEN}` }, cache: "no-store", signal: AbortSignal.timeout(8_000) });
-    const body = (await response.json()) as { ip?: string };
-    return response.ok ? normalizeIp(body.ip) : null;
-  } catch {
-    return null;
+  // Networks that are switching (a VPN turning on, Wi-Fi roaming) drop the first
+  // connection, so retry once before giving up.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await fetch("https://ipinfo.io/json", { headers: { authorization: `Bearer ${process.env.IPINFO_TOKEN}` }, cache: "no-store", signal: AbortSignal.timeout(10_000) });
+      if (response.ok) {
+        const ip = normalizeIp(((await response.json()) as { ip?: string }).ip);
+        if (ip) return ip;
+      }
+      if (response.status === 401 || response.status === 403 || response.status === 429) return null;
+    } catch {
+      // try again
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
+  return null;
 }
 
 
@@ -238,11 +247,14 @@ export async function resolveMyIp(request: Request): Promise<string | null> {
  * Local development only. Without a trusted ingress the server cannot read the
  * visitor's address, so every scan would lack an IP, location and list check.
  * A dev server shares the visitor's public address, so IPinfo's "who am I"
- * answer stands in for it. The notice says so, and `trusted` stays false.
+ * answer stands in for it, unless the browser reported its own address. The notice says so, and `trusted` stays false.
  */
-export async function withDevNetworkFallback(request: Request, network: ServerNetworkData): Promise<ServerNetworkData> {
+export async function withDevNetworkFallback(request: Request, network: ServerNetworkData, browserReportedIp?: string): Promise<ServerNetworkData> {
   if (process.env.NODE_ENV === "production" || network.isPublicIp) return network;
-  const ip = await resolveMyIp(request);
+  // The browser's own address is right even when a VPN covers only the browser;
+  // the dev server's connection may bypass it.
+  const reported = normalizeIp(browserReportedIp);
+  const ip = reported && isPublicIp(reported) ? reported : await resolveMyIp(request);
   if (!ip) return network;
   const intel = await lookupIpIntel(ip);
   if (!intel || intel.ipinfo.status !== "ok") return network;

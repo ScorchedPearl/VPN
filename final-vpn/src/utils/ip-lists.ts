@@ -10,11 +10,18 @@
 
 export type ListName = "vpn" | "datacenter" | "private-relay" | "tor";
 
-export const LIST_SOURCES: Record<ListName, string> = {
-  vpn: "https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/vpn/ipv4.txt",
-  datacenter: "https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/datacenter/ipv4.txt",
-  "private-relay": "https://mask-api.icloud.com/egress-ip-ranges.csv",
-  tor: "https://check.torproject.org/torbulkexitlist",
+/** Each list may combine several files (X4BNet publishes IPv4 and IPv6 separately). */
+export const LIST_SOURCES: Record<ListName, string[]> = {
+  vpn: [
+    "https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/vpn/ipv4.txt",
+    "https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/vpn/ipv6.txt",
+  ],
+  datacenter: [
+    "https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/datacenter/ipv4.txt",
+    "https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/datacenter/ipv6.txt",
+  ],
+  "private-relay": ["https://mask-api.icloud.com/egress-ip-ranges.csv"],
+  tor: ["https://check.torproject.org/torbulkexitlist"],
 };
 
 /** Sorted, merged [start, end] ranges per address family, for binary search. */
@@ -168,12 +175,20 @@ export async function loadIpLists(fetcher: typeof fetch = fetch, names: ListName
   const sets: Partial<Record<ListName, RangeSet>> = { ...(current?.sets || {}) };
   const loading = Promise.all(names.map(async (name) => {
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15_000);
-      const response = await fetcher(LIST_SOURCES[name], { signal: controller.signal, cache: "no-store" });
-      clearTimeout(timer);
-      if (!response.ok) return;
-      const parsed = buildRangeSet(await response.text());
+      // A file that fails to load is skipped, so a missing IPv6 file never drops the IPv4 one.
+      const texts = await Promise.all(LIST_SOURCES[name].map(async (source) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15_000);
+        try {
+          const response = await fetcher(source, { signal: controller.signal, cache: "no-store" });
+          return response.ok ? await response.text() : "";
+        } catch {
+          return "";
+        } finally {
+          clearTimeout(timer);
+        }
+      }));
+      const parsed = buildRangeSet(texts.join("\n"));
       if (parsed.entries > 0) sets[name] = parsed;
     } catch {
       // keep the previous copy of this list, if any
