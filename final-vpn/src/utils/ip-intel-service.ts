@@ -5,7 +5,8 @@ import path from "node:path";
 import { isIP, setDefaultAutoSelectFamilyAttemptTimeout } from "node:net";
 import { checkReputation, loadIpLists } from "./ip-lists";
 import { lookupIpinfo } from "./ipinfo";
-import { canonicalClientAddress, isPublicIp } from "./server-network";
+import { canonicalClientAddress, isPublicIp, utcOffsetForTimeZone } from "./server-network";
+import type { ServerNetworkData } from "./network";
 import { evaluateGeolocation, readMeasurement, selectProbes, startPingMeasurement, type AtlasSample } from "./ripe-atlas";
 import type { AtlasState, IpIntel, IpinfoState } from "./ip-intel";
 
@@ -232,3 +233,50 @@ export async function resolveMyIp(request: Request): Promise<string | null> {
   }
 }
 
+
+/**
+ * Local development only. Without a trusted ingress the server cannot read the
+ * visitor's address, so every scan would lack an IP, location and list check.
+ * A dev server shares the visitor's public address, so IPinfo's "who am I"
+ * answer stands in for it. The notice says so, and `trusted` stays false.
+ */
+export async function withDevNetworkFallback(request: Request, network: ServerNetworkData): Promise<ServerNetworkData> {
+  if (process.env.NODE_ENV === "production" || network.isPublicIp) return network;
+  const ip = await resolveMyIp(request);
+  if (!ip) return network;
+  const intel = await lookupIpIntel(ip);
+  if (!intel || intel.ipinfo.status !== "ok") return network;
+  const info = intel.ipinfo.result;
+  const lists = intel.lists;
+  return {
+    ...network,
+    ip,
+    ipFamily: ip.includes(":") ? "ipv6" : "ipv4",
+    isPublicIp: true,
+    source: "local-dev-ipinfo",
+    trusted: false,
+    trustNotice: "Local development: the address was resolved through IPinfo, not read from a trusted ingress. Set TRUSTED_PROXY_PROVIDER on a deployment.",
+    geoIp: {
+      ip,
+      city: info.city || "Unknown",
+      country: info.country || "Unknown",
+      countryCode: info.country || "Unknown",
+      latitude: info.latitude,
+      longitude: info.longitude,
+      timezone: info.timezone || "Unknown",
+      utcOffsetMinutes: info.timezone ? utcOffsetForTimeZone(info.timezone) : null,
+      org: info.asnName || info.org || "Unknown",
+      asn: info.asn || "Unknown",
+      network: "",
+      accuracyRadiusKm: null,
+      countryConfidence: null,
+      cityConfidence: null,
+      databaseDate: "",
+      source: "ipinfo",
+      region: info.region || undefined,
+    },
+    anonymizer: lists
+      ? { ...network.anonymizer, isTorExitNode: lists.tor, isPrivateRelay: lists.privateRelay, source: "public-lists", lists: { vpn: lists.vpn, datacenter: lists.datacenter, privateRelay: lists.privateRelay, tor: lists.tor, checked: lists.checked } }
+      : network.anonymizer,
+  };
+}

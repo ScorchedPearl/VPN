@@ -428,7 +428,11 @@ function networkAnswer(best: ObservationMatch | null, server: ServerNetworkData)
 function vpnAnswer(risk: RiskAssessment): { headline: string; detail: string; tone: Tone } {
   const reasons = risk.evidence.filter((item) => item.logLikelihoodRatio > 0).sort((a, b) => b.logLikelihoodRatio - a.logLikelihoodRatio).slice(0, 2).map((item) => item.label);
   const why = reasons.length ? `${reasons.join(" · ")}.` : "";
-  if (risk.band === "unknown") return { headline: "Not enough evidence", detail: "Too few network signals were available to judge this scan.", tone: "neutral" };
+  if (risk.band === "unknown") {
+    // Even when the model will not call it, show what it saw and how likely it makes a VPN.
+    if (reasons.length) return { headline: `Unclear, ${risk.score}% VPN likelihood`, detail: `${why} Too few other checks were available to be sure.`, tone: "warn" };
+    return { headline: "Not enough evidence", detail: "Too few network signals were available to judge this scan.", tone: "neutral" };
+  }
   if (risk.kind === "private-relay") return { headline: `iCloud Private Relay (${risk.score}%)`, detail: "Apple's built-in privacy relay, not a VPN chosen to hide location.", tone: "accent" };
   if (risk.band === "high") return { headline: `${risk.headline.replace("Strong signs of ", "").replace(/^a /, "").replace(/^./, (c) => c.toUpperCase())} likely (${risk.score}%)`, detail: why || risk.headline, tone: "bad" };
   if (risk.band === "elevated") return { headline: `Possible ${risk.kind === "proxy" ? "proxy" : "VPN"} (${risk.score}%)`, detail: why || risk.headline, tone: "warn" };

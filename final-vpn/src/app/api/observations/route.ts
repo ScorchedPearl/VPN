@@ -10,7 +10,7 @@ import { legacyObservationCount, observationCount, recentObservations, saveObser
 import { cachedDeviceIds, cachedLinkageModel, deviceHistoryFor, linkedHistory, linkObservations } from "@/utils/linkage-service";
 import { assessVpn } from "@/utils/vpn-detection";
 import { checkReputation, loadIpLists } from "@/utils/ip-lists";
-import { lookupIpIntel, startAtlasCheck } from "@/utils/ip-intel-service";
+import { lookupIpIntel, startAtlasCheck, withDevNetworkFallback } from "@/utils/ip-intel-service";
 import { protectFingerprintComponents } from "@/utils/protected-fingerprint";
 import { observeServerNetwork, verifyAndEnrichProbe, verifyScanChallenge } from "@/utils/server-network";
 import { compareObservations } from "@/utils/similarity";
@@ -42,9 +42,10 @@ export async function POST(request: Request) {
     const payload: unknown = await request.json();
     if (!isSubmission(payload)) return Response.json({ error: "Invalid or unconsented research observation" }, { status: 400 });
 
-    const serverNetwork = await observeServerNetwork(request);
+    let serverNetwork = await observeServerNetwork(request);
     if (!verifyScanChallenge(payload.scanChallenge, serverNetwork, request.headers)) return Response.json({ error: "Expired or invalid scan challenge" }, { status: 400 });
     if (!allowObservation(serverNetwork)) return Response.json({ error: "Research capture rate limit exceeded" }, { status: 429 });
+    serverNetwork = await withDevNetworkFallback(request, serverNetwork);
     serverNetwork.clientConsistency = compareClientClaims(payload, serverNetwork.headers);
     const pathProbes = await Promise.all(payload.pathProbes.slice(0, 2).map((probe) => verifyAndEnrichProbe(probe)));
     const serverReceivedAt = new Date().toISOString();

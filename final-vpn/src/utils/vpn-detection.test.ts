@@ -176,3 +176,31 @@ test("bracketed IPv6 STUN candidates compare equal to the HTTP address", () => {
   const risk = assessVpn({ current, deviceHistory: [], population: [] });
   assert.ok(!ids(risk).includes("webrtc-mismatch") && ids(risk).includes("webrtc-consistent"), ids(risk).join(", "));
 });
+
+test("without an IP location, a nearest landmark far from the browser's timezone is flagged", () => {
+  const slow = [
+    { city: "Mumbai", lat: 19.08, lon: 72.88, ms: 300 },
+    { city: "Singapore", lat: 1.35, lon: 103.82, ms: 310 },
+    { city: "Frankfurt", lat: 50.11, lon: 8.68, ms: 283 },
+    { city: "N. Virginia", lat: 38.95, lon: -77.45, ms: 330 },
+  ];
+  const risk = assessVpn({ current: scan({ id: "c", ip: "203.0.113.5", landmarks: slow }), deviceHistory: [], population: [] });
+  assert.ok(ids(risk).includes("timezone-latency-high"));
+  assert.ok(risk.details?.excessLatencyMs && risk.details.excessLatencyMs > 200);
+  const normal = assessVpn({ current: scan({ id: "n", ip: "203.0.113.5", landmarks: LANDMARKS_FROM_INDIA }), deviceHistory: [], population: [] });
+  assert.ok(!ids(normal).some((id) => id.startsWith("timezone-latency")));
+});
+
+test("the timezone rule stays quiet when an IP location exists, and abstention yields to agreeing signals", () => {
+  const withGeo = assessVpn({ current: scan({ id: "g", ip: "203.0.113.5", geo: MUMBAI, landmarks: LANDMARKS_FROM_INDIA }), deviceHistory: [], population: [] });
+  assert.ok(!ids(withGeo).some((id) => id.startsWith("timezone-latency")));
+  const home = scan({ id: "h", ip: "198.51.100.7", rtt: 16, landmarks: LANDMARKS_FROM_INDIA });
+  const slow = scan({ id: "s", ip: "203.0.113.5", rtt: 16, landmarks: [
+    { city: "Mumbai", lat: 19.08, lon: 72.88, ms: 300 }, { city: "Singapore", lat: 1.35, lon: 103.82, ms: 310 },
+    { city: "Frankfurt", lat: 50.11, lon: 8.68, ms: 283 }, { city: "N. Virginia", lat: 38.95, lon: -77.45, ms: 330 },
+  ] });
+  const risk = assessVpn({ current: slow, deviceHistory: [home], population: [] });
+  assert.ok(ids(risk).includes("timezone-latency-high") && ids(risk).includes("landmark-floor-jump"));
+  assert.equal(risk.abstain, false);
+  assert.notEqual(risk.band, "low");
+});

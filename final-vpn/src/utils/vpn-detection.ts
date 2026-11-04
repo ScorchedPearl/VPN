@@ -93,6 +93,34 @@ export function exitPrefix(ip: string | undefined): string | null {
   return null;
 }
 
+interface TimezoneAnchor { latitude: number; longitude: number; region: string }
+
+const ZONE_ANCHORS: Record<string, [number, number, string]> = {
+  "Asia/Calcutta": [22.5, 78.9, "India"], "Asia/Kolkata": [22.5, 78.9, "India"],
+  "Asia/Karachi": [30, 69, "Pakistan"], "Asia/Dhaka": [23.8, 90.4, "Bangladesh"], "Asia/Colombo": [7.9, 80.7, "Sri Lanka"],
+  "Asia/Dubai": [25.2, 55.3, "the Gulf"], "Asia/Riyadh": [24.7, 46.7, "Arabia"], "Asia/Tehran": [35.7, 51.4, "Iran"],
+  "Asia/Singapore": [1.35, 103.8, "Singapore"], "Asia/Bangkok": [13.8, 100.5, "Southeast Asia"], "Asia/Jakarta": [-6.2, 106.8, "Indonesia"],
+  "Asia/Manila": [14.6, 121, "the Philippines"], "Asia/Hong_Kong": [22.3, 114.2, "Hong Kong"], "Asia/Shanghai": [31.2, 121.5, "China"],
+  "Asia/Tokyo": [35.7, 139.7, "Japan"], "Asia/Seoul": [37.6, 127, "Korea"], "Australia/Sydney": [-33.9, 151.2, "eastern Australia"],
+  "Australia/Melbourne": [-37.8, 145, "eastern Australia"], "Australia/Perth": [-31.9, 115.9, "western Australia"],
+  "Pacific/Auckland": [-36.9, 174.8, "New Zealand"], "Europe/London": [51.5, -0.1, "the UK"], "Europe/Dublin": [53.3, -6.3, "Ireland"],
+  "Europe/Paris": [48.9, 2.4, "France"], "Europe/Berlin": [52.5, 13.4, "Germany"], "Europe/Madrid": [40.4, -3.7, "Spain"],
+  "Europe/Rome": [41.9, 12.5, "Italy"], "Europe/Amsterdam": [52.4, 4.9, "the Netherlands"], "Europe/Moscow": [55.8, 37.6, "Russia"],
+  "Europe/Istanbul": [41, 29, "Turkey"], "Africa/Johannesburg": [-26.2, 28, "South Africa"], "Africa/Cairo": [30, 31.2, "Egypt"],
+  "Africa/Lagos": [6.5, 3.4, "Nigeria"], "Africa/Nairobi": [-1.3, 36.8, "Kenya"],
+  "America/New_York": [40.7, -74, "the US east coast"], "America/Toronto": [43.7, -79.4, "eastern Canada"], "America/Chicago": [41.9, -87.6, "the US midwest"],
+  "America/Denver": [39.7, -105, "the US mountain states"], "America/Los_Angeles": [34, -118.2, "the US west coast"],
+  "America/Mexico_City": [19.4, -99.1, "Mexico"], "America/Sao_Paulo": [-23.5, -46.6, "Brazil"], "America/Argentina/Buenos_Aires": [-34.6, -58.4, "Argentina"],
+  "America/Bogota": [4.7, -74.1, "Colombia"],
+};
+
+/** A rough location for the browser's timezone, for use when no IP location exists. */
+export function timezoneAnchor(name: string): TimezoneAnchor | null {
+  const known = ZONE_ANCHORS[name];
+  if (known) return { latitude: known[0], longitude: known[1], region: known[2] };
+  return null;
+}
+
 function ipOf(observation: ResearchObservation): string {
   return observation.serverNetwork?.ip || observation.effectivePublicIp;
 }
@@ -196,6 +224,24 @@ export function assessVpn(context: VpnContext): RiskAssessment {
     else if (excess < 50) add(evidence, "latency-consistent", "path", "Latency fits the IP location", `Round trips match a client located near ${geo.city || geo.country} (≈${Math.max(0, Math.round(excess))} ms of last-mile delay).`, -0.9, "context", "latency-geolocation");
   }
 
+  // Without an IP location, the browser's own timezone says roughly where the
+  // client should be. A nearest landmark far slower than that region allows
+  // means the traffic is detouring through a relay.
+  else if (landmarks.length >= 3) {
+    const anchor = timezoneAnchor(fingerprint.timezone.name);
+    if (anchor) {
+      const floor = Math.min(...landmarks.map((item) => item.minMs!));
+      const expected = Math.min(...landmarks.map((item) => minimumRttMs(haversineKm(anchor.latitude, anchor.longitude, item.latitude, item.longitude))));
+      const excess = floor - expected;
+      const nearest = landmarks.find((item) => item.minMs === floor)?.city;
+      details.excessLatencyMs = Math.round(excess);
+      details.nearestLandmark = nearest;
+      const explain = `The browser timezone (${fingerprint.timezone.name}) puts the client in ${anchor.region}, where some cloud region should answer within about ${Math.round(expected + 60)} ms. The closest landmark (${nearest}) takes ${Math.round(floor)} ms.`;
+      if (excess > 200) add(evidence, "timezone-latency-high", "location", "Latency does not fit the browser's timezone", `${explain} Traffic is probably leaving through a distant relay first; a clock set to another country also does this.`, 2, "moderate", "browser-timezone-latency");
+      else if (excess > 120) add(evidence, "timezone-latency", "location", "Latency only partly fits the browser's timezone", `${explain} A slow connection can add some of this.`, 1, "weak", "browser-timezone-latency");
+    }
+  }
+
   /* --- Path ---------------------------------------------------------------- */
   const sameFamily = (address: string) => (address.includes(":") === ip.includes(":"));
   // Browsers may report IPv6 candidates in brackets; compare bare addresses.
@@ -289,7 +335,9 @@ export function assessVpn(context: VpnContext): RiskAssessment {
   ];
   const completeness = parts.filter(Boolean).length / parts.length;
   const strong = evidence.some((item) => item.strength === "strong" && item.logLikelihoodRatio > 0);
-  const abstain = !strong && completeness < 0.4;
+  // Several moderate signals that agree are enough to speak, even with few checks available.
+  const positive = evidence.reduce((sum, item) => sum + Math.max(0, item.logLikelihoodRatio), 0);
+  const abstain = !strong && completeness < 0.4 && positive < 2.5;
   const band = abstain ? "unknown" : probability >= 0.85 ? "high" : probability >= 0.35 ? "elevated" : "low";
   // A match on the Tor or Apple relay lists identifies the network outright.
   const kind: NonNullable<RiskAssessment["kind"]> = lists?.tor || anonymizer?.isTorExitNode ? "tor"
