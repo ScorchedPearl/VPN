@@ -215,6 +215,9 @@ export default function Home() {
             <span className="hidden text-muted sm:inline" title={storeNotice || undefined}>
               {storeBackend === "checking" ? "Connecting…" : storeBackend === "offline" ? "Storage offline" : `${storeCount} saved scan${storeCount === 1 ? "" : "s"}`}
             </span>
+            <Link href="/ip-check" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium text-ink transition hover:bg-surface-2">
+              IP check
+            </Link>
             <Link href="/observations" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium text-ink transition hover:bg-surface-2">
               Saved data <ArrowRight className="h-3.5 w-3.5" />
             </Link>

@@ -1,4 +1,5 @@
 import type { ResearchObservation } from "./fingerprint";
+import { ipIntelEvidence, type IpIntel } from "./ip-intel.ts";
 import type { EvidenceGroup, RiskAssessment, RiskEvidence } from "./risk";
 
 /**
@@ -45,6 +46,8 @@ export interface VpnContext {
   /** Recent scans from everyone, each with its inferred device id. */
   population: Array<{ observation: ResearchObservation; deviceId: string }>;
   currentDeviceId?: string;
+  /** IPinfo and RIPE Atlas findings for the scan's address, when available. */
+  ipIntel?: Pick<IpIntel, "ipinfo" | "atlas"> | null;
   /** Reputation of any address (used for history and population scans). */
   reputationOf?: (ip: string) => ReputationLookup | null;
   priorProbability?: number;
@@ -154,6 +157,8 @@ export function assessVpn(context: VpnContext): RiskAssessment {
   if (lists && lists.checked.length >= 2 && !lists.vpn && !lists.datacenter && !lists.tor && !lists.privateRelay) {
     add(evidence, "clean-reputation", "network", "Ordinary ISP address", "The address is on no VPN, datacenter, Tor or relay list. Residential proxies and small VPNs can still be missed.", -0.7, "context", "public-lists");
   }
+
+  if (context.ipIntel && server?.isPublicIp) evidence.push(...ipIntelEvidence(context.ipIntel, lists));
 
   /* --- Location consistency --------------------------------------------- */
   const browserOffset = fingerprint.timezone.offsetMinutes;

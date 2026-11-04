@@ -10,6 +10,7 @@ import { legacyObservationCount, observationCount, recentObservations, saveObser
 import { cachedDeviceIds, cachedLinkageModel, deviceHistoryFor, linkedHistory, linkObservations } from "@/utils/linkage-service";
 import { assessVpn } from "@/utils/vpn-detection";
 import { checkReputation, loadIpLists } from "@/utils/ip-lists";
+import { lookupIpIntel, startAtlasCheck } from "@/utils/ip-intel-service";
 import { protectFingerprintComponents } from "@/utils/protected-fingerprint";
 import { observeServerNetwork, verifyAndEnrichProbe, verifyScanChallenge } from "@/utils/server-network";
 import { compareObservations } from "@/utils/similarity";
@@ -99,14 +100,22 @@ export async function POST(request: Request) {
     const deviceIds = cachedDeviceIds(previousObservations, linkageModel);
     const device = deviceHistoryFor(linked, deviceIds);
     const lists = process.env.PUBLIC_IP_LISTS === "false" ? {} : await loadIpLists();
+    // IPinfo (cached 7 days) and any RIPE Atlas result already known for this address.
+    const ipIntel = serverNetwork?.isPublicIp ? await lookupIpIntel(serverNetwork.ip).catch(() => null) : null;
     observation.riskAssessment = assessVpn({
       current: observation,
+      ipIntel,
       deviceHistory: device.history,
       currentDeviceId: device.deviceId,
       population: previousObservations.map((item) => ({ observation: item, deviceId: deviceIds.get(item.observationId) || item.observationId })),
       reputationOf: (ip) => checkReputation(lists, ip),
       priorProbability: configuredVpnPrior(),
     });
+
+    // RIPE Atlas costs credits, so it only runs for addresses the cheaper layers could not settle.
+    if (ipIntel && ipIntel.atlas.status === "not-run" && observation.riskAssessment.probability >= 0.2 && observation.riskAssessment.probability < 0.85) {
+      void startAtlasCheck(ipIntel.ip).catch(() => undefined);
+    }
 
     await saveObservation(observation);
     return Response.json({

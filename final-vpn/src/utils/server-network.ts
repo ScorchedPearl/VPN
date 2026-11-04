@@ -203,7 +203,7 @@ function ipFamily(ip: string): IpFamily {
   return version === 4 ? "ipv4" : version === 6 ? "ipv6" : "unknown";
 }
 
-function isPublicIp(ip: string): boolean {
+export function isPublicIp(ip: string): boolean {
   const family = ipFamily(ip);
   if (family === "ipv4") {
     const octets = ip.split(".").map(Number);
