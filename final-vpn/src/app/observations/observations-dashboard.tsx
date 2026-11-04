@@ -2,38 +2,59 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Archive, ArrowLeft, BarChart3, Database, GitCompare, Layers, Loader2, Lock, RefreshCw, Search, Table2 } from "lucide-react";
+import { Archive, ArrowLeft, BarChart3, GitCompare, Layers, Loader2, Lock, RefreshCw, Search, Table2 } from "lucide-react";
 import type { ResearchObservation } from "@/utils/fingerprint";
-import type { ModelEvaluation } from "@/utils/evaluation";
+import { evaluateStoredModel } from "@/utils/evaluation";
 import type { ArchivedObservation } from "@/utils/research-store";
 import { browserOf, groupSameDevice, linkObservations, scoreAllPairs, type LinkageEvaluation, type LinkageModel, type LinkageResult } from "@/utils/linkage";
 import { Card, Disclosure, DivergingBar, Empty, Pill, Row, inputClass, toneText, type Tone } from "@/components/ui";
 
-export default function ObservationsDashboard({ initialObservations, legacyObservations, evaluation, linkageModel, linkageEvaluation, archivedObservations, archiveEnabled }: {
+type Dataset = "current" | "archived" | "prototype";
+type Scope = "all" | Dataset;
+
+const SCOPES: Array<{ id: Scope; label: string }> = [
+  { id: "all", label: "All saved data" },
+  { id: "current", label: "Current set" },
+  { id: "archived", label: "Archived" },
+  { id: "prototype", label: "Original prototype" },
+];
+
+export default function ObservationsDashboard({ initialObservations, legacyObservations, linkageModel, linkageEvaluation, archivedObservations, archiveEnabled }: {
   initialObservations: ResearchObservation[];
   legacyObservations: ResearchObservation[];
-  evaluation: ModelEvaluation;
   linkageModel: LinkageModel;
   linkageEvaluation: LinkageEvaluation;
   archivedObservations: ArchivedObservation[];
   archiveEnabled: boolean;
 }) {
   const [search, setSearch] = useState("");
+  const [scope, setScope] = useState<Scope>("all");
+  // Earlier scans are shown and evaluated for VPN detection, but device
+  // linking below only ever compares scans of the current set.
+  const datasetOf = useMemo(() => {
+    const map = new Map<string, Dataset>();
+    for (const item of legacyObservations) map.set(item.observationId, "prototype");
+    for (const item of archivedObservations) map.set(item.observationId, "archived");
+    for (const item of initialObservations) map.set(item.observationId, "current");
+    return map;
+  }, [initialObservations, archivedObservations, legacyObservations]);
+  const everything = useMemo(() => [...initialObservations, ...archivedObservations, ...legacyObservations], [initialObservations, archivedObservations, legacyObservations]);
+  const scoped = useMemo(() => scope === "all" ? everything : everything.filter((item) => datasetOf.get(item.observationId) === scope), [everything, datasetOf, scope]);
   const [firstId, setFirstId] = useState(initialObservations[0]?.observationId || "");
   const [secondId, setSecondId] = useState(initialObservations[1]?.observationId || initialObservations[0]?.observationId || "");
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return initialObservations;
-    return initialObservations.filter((item) => [
+    if (!term) return scoped;
+    return scoped.filter((item) => [
       item.deviceLabel, item.fingerprint.browserFamily, item.fingerprint.osFamily, item.effectivePublicIp,
       item.serverNetwork?.geoIp?.country, item.serverNetwork?.geoIp?.org, item.vpnGroundTruth,
     ].some((value) => String(value || "").toLowerCase().includes(term)));
-  }, [initialObservations, search]);
+  }, [scoped, search]);
 
-  const labels = new Set(initialObservations.map((item) => item.deviceLabel)).size;
-  const browsers = new Set(initialObservations.map((item) => item.fingerprint.browserFamily)).size;
-  const ips = new Set(initialObservations.map((item) => item.effectivePublicIp).filter((value) => value && value !== "Unknown")).size;
+  const labels = new Set(scoped.map((item) => item.deviceLabel)).size;
+  const browsers = new Set(scoped.map((item) => item.fingerprint.browserFamily)).size;
+  const ips = new Set(scoped.map((item) => item.effectivePublicIp).filter((value) => value && value !== "Unknown")).size;
   const overall = linkageEvaluation.metrics.find((item) => item.context === "all");
   const first = initialObservations.find((item) => item.observationId === firstId) || null;
   const second = initialObservations.find((item) => item.observationId === secondId) || null;
@@ -57,17 +78,29 @@ export default function ObservationsDashboard({ initialObservations, legacyObser
           <p className="mt-2 text-muted">How well VPNs are detected, how scans link to devices, and every scan.</p>
         </section>
 
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Which scans to show">
+          {SCOPES.map((option) => {
+            const count = option.id === "all" ? everything.length : everything.filter((item) => datasetOf.get(item.observationId) === option.id).length;
+            return (
+              <button key={option.id} type="button" onClick={() => setScope(option.id)} aria-pressed={scope === option.id}
+                className={`rounded-lg border px-3 py-1.5 text-sm transition ${scope === option.id ? "border-accent bg-accent-soft text-ink" : "border-line text-ink-2 hover:bg-surface-2"}`}>
+                {option.label} <span className="text-muted">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="Scans" value={initialObservations.length} />
+          <Stat label="Scans" value={scoped.length} />
           <Stat label="Named devices" value={labels} />
           <Stat label="Browsers" value={browsers} />
           <Stat label="Public IPs" value={ips} />
         </div>
 
-        <VpnDetectionPanel observations={initialObservations} evaluation={evaluation} />
+        <VpnDetectionPanel observations={scoped} datasetOf={datasetOf} />
 
         <Card className="p-5">
-          <p className="text-sm text-muted">How well does linking work on your data?</p>
+          <p className="text-sm text-muted">How well does linking work on your data? <span className="text-xs">(current set of {initialObservations.length} scans)</span></p>
           {overall && overall.positives > 0 && overall.negatives > 0 ? (
             <div className="mt-3 grid gap-4 sm:grid-cols-3">
               <Headline value={formatRate(overall.rocAuc)} label="Ranking quality (ROC AUC)" tone={toneFor(overall.rocAuc, 0.95, 0.8)} />
@@ -98,14 +131,14 @@ export default function ObservationsDashboard({ initialObservations, legacyObser
           {comparison && first && second ? <ComparisonView result={comparison} sameName={first.deviceLabel === second.deviceLabel} /> : <Empty>Choose two different scans.</Empty>}
         </Disclosure>
 
-        <Disclosure title="All scans" hint={`${initialObservations.length} rows`} icon={<Table2 className="h-4 w-4" />}>
+        <Disclosure title="All scans" hint={`${scoped.length} rows · ${SCOPES.find((option) => option.id === scope)!.label.toLowerCase()}`} icon={<Table2 className="h-4 w-4" />}>
           <label className="relative mb-3 block">
             <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted" />
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, browser, IP, country…" className={`${inputClass} pl-9`} />
           </label>
           {filtered.length === 0 ? <Empty>Nothing matches.</Empty> : (
             <div className="divide-y divide-line">
-              {filtered.map((item) => <ScanRow key={item.observationId} item={item} />)}
+              {filtered.map((item) => <ScanRow key={item.observationId} item={item} dataset={datasetOf.get(item.observationId)} />)}
             </div>
           )}
         </Disclosure>
@@ -115,29 +148,24 @@ export default function ObservationsDashboard({ initialObservations, legacyObser
 
         <FreshStart enabled={archiveEnabled} activeCount={initialObservations.length} />
 
-        {legacyObservations.length > 0 && (
-          <Disclosure title="Original prototype data" hint={`${legacyObservations.length} read-only rows`} icon={<Database className="h-4 w-4" />}>
-            <div className="divide-y divide-line">
-              {legacyObservations.map((item) => (
-                <p key={item.observationId} className="py-2 text-sm text-ink-2"><span className="font-medium text-ink">{item.deviceLabel}</span> · {item.fingerprint.browserFamily} · {item.browserMode} · {item.vpnGroundTruth} · <span className="font-mono text-xs">{item.effectivePublicIp}</span></p>
-              ))}
-            </div>
-          </Disclosure>
-        )}
 
       </div>
     </main>
   );
 }
 
-function ScanRow({ item }: { item: ResearchObservation }) {
+function ScanRow({ item, dataset }: { item: ResearchObservation; dataset?: Dataset }) {
+  const risk = item.riskAssessment;
   return (
     <details className="group py-2.5">
       <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2">
         <span className="text-sm text-ink"><span className="font-medium">{item.deviceLabel}</span> <span className="text-muted">· {item.fingerprint.browserFamily}{item.browserMode === "private" ? " (private)" : ""} · {formatTimestamp(item.serverReceivedAt || item.fingerprint.collectedAt)}</span></span>
         <span className="flex gap-1.5">
+          {dataset && dataset !== "current" && <Pill>{dataset === "archived" ? "archived" : "prototype"}</Pill>}
           {item.vpnGroundTruth !== "unknown" && <Pill tone={["none", "off"].includes(item.vpnGroundTruth) ? "neutral" : "accent"}>{item.vpnGroundTruth}</Pill>}
-          {item.riskAssessment && <Pill tone={item.riskAssessment.band === "high" ? "bad" : item.riskAssessment.band === "elevated" ? "warn" : "neutral"}>risk {item.riskAssessment.score}%</Pill>}
+          {risk && (risk.band === "unknown"
+            ? <Pill>VPN: not enough data</Pill>
+            : <Pill tone={risk.band === "high" ? "bad" : risk.band === "elevated" ? "warn" : "neutral"}>VPN {risk.score}%</Pill>)}
         </span>
       </summary>
       <div className="mt-2 grid gap-x-8 rounded-xl bg-surface-2/50 px-4 py-2 sm:grid-cols-2">
@@ -250,8 +278,14 @@ const POSITIVE_LABELS = new Set(["consumer-vpn", "corporate-vpn", "split-tunnel"
 const NEGATIVE_LABELS = new Set(["none", "off"]);
 
 /** How the VPN model and each of its signals behave on labelled scans. */
-function VpnDetectionPanel({ observations, evaluation }: { observations: ResearchObservation[]; evaluation: ModelEvaluation }) {
-  const labelled = observations.filter((item) => item.riskAssessment && (POSITIVE_LABELS.has(item.vpnGroundTruth) || NEGATIVE_LABELS.has(item.vpnGroundTruth)));
+function VpnDetectionPanel({ observations, datasetOf }: { observations: ResearchObservation[]; datasetOf: Map<string, Dataset> }) {
+  const withLabel = observations.filter((item) => item.riskAssessment && (POSITIVE_LABELS.has(item.vpnGroundTruth) || NEGATIVE_LABELS.has(item.vpnGroundTruth)));
+  // Scans the model abstained on (e.g. saved without any IP address) are reported, not scored as misses.
+  const labelled = withLabel.filter((item) => item.riskAssessment!.band !== "unknown");
+  const unscored = withLabel.length - labelled.length;
+  const withoutIp = withLabel.filter((item) => item.riskAssessment!.band === "unknown" && !/[.:]/.test(item.effectivePublicIp || "")).length;
+  const evaluation = evaluateStoredModel(labelled);
+  const missed = labelled.filter((item) => POSITIVE_LABELS.has(item.vpnGroundTruth) && item.riskAssessment!.probability < 0.5);
   const vpn = labelled.filter((item) => POSITIVE_LABELS.has(item.vpnGroundTruth));
   const clean = labelled.filter((item) => NEGATIVE_LABELS.has(item.vpnGroundTruth));
   const caught = vpn.filter((item) => item.riskAssessment!.probability >= 0.5).length;
@@ -277,6 +311,12 @@ function VpnDetectionPanel({ observations, evaluation }: { observations: Researc
             <Headline value={formatRate(evaluation.prAuc)} label="PR-AUC (ranking quality)" tone={toneFor(evaluation.prAuc, 0.9, 0.7)} />
           </div>
         ) : <p className="mt-2 text-sm text-ink-2">Label some scans as “No VPN” and some with a VPN type to measure detection.</p>}
+        {unscored > 0 && (
+          <p className="mt-3 text-xs text-muted">
+            {unscored} labelled scan{unscored === 1 ? " has" : "s have"} too little data for a verdict and {unscored === 1 ? "is" : "are"} left out
+            {withoutIp > 0 ? ` (${withoutIp} saved without any IP address; the rest are old scans with only an IP and no history)` : ""}.
+          </p>
+        )}
       </Card>
       <Disclosure title="VPN signals" hint="Which signals fired on VPN and no-VPN scans" icon={<BarChart3 className="h-4 w-4" />}>
         {signals.size === 0 ? <Empty>No labelled scans yet.</Empty> : (
@@ -301,13 +341,19 @@ function VpnDetectionPanel({ observations, evaluation }: { observations: Researc
           <Row label="Recall at 50%" value={formatRate(evaluation.recall)} />
           <Row label="Brier score (lower is better)" value={evaluation.brierScore === null ? "n/a" : evaluation.brierScore.toFixed(3)} />
         </div>
+        {missed.length > 0 && (
+          <div className="mt-4">
+            <p className="mb-1 text-sm font-medium text-ink">VPN scans the model missed</p>
+            {missed.map((item) => <Row key={item.observationId} label={`${item.deviceLabel} · ${item.fingerprint.browserFamily}${datasetOf.get(item.observationId) === "current" ? "" : ` · ${datasetOf.get(item.observationId)}`}`} value={`${item.riskAssessment!.score}% · ${item.effectivePublicIp}`} />)}
+          </div>
+        )}
         {flaggedUnlabelled.length > 0 && (
           <div className="mt-4">
             <p className="mb-1 text-sm font-medium text-ink">Unlabelled scans the model thinks used a VPN</p>
-            {flaggedUnlabelled.map((item) => <Row key={item.observationId} label={`${item.deviceLabel} · ${item.fingerprint.browserFamily}`} value={`${item.riskAssessment!.score}% · ${item.effectivePublicIp}`} />)}
+            {flaggedUnlabelled.map((item) => <Row key={item.observationId} label={`${item.deviceLabel} · ${item.fingerprint.browserFamily}${datasetOf.get(item.observationId) === "current" ? "" : ` · ${datasetOf.get(item.observationId)}`}`} value={`${item.riskAssessment!.score}% · ${item.effectivePublicIp}`} />)}
           </div>
         )}
-        <p className="mt-3 text-xs leading-5 text-muted">Weights are log-likelihood ratios from the research literature (red raises VPN likelihood, green lowers it). Scans from before latency landmarks, IP geolocation and WebRTC were collected can only show the network, reputation and device-history signals.</p>
+        <p className="mt-3 text-xs leading-5 text-muted">Weights are log-likelihood ratios from the research literature (red raises VPN likelihood, green lowers it). Scans from before latency landmarks, IP geolocation and WebRTC were collected can only show the network, reputation and device-history signals. Archived and prototype scans are scored only against earlier scans of their own set; original-prototype scans use the public IP their page reported.</p>
       </Disclosure>
     </>
   );

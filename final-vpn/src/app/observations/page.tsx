@@ -1,7 +1,6 @@
 import Link from "next/link";
 import ObservationsDashboard from "./observations-dashboard";
 import { archivedObservations, recentLegacyObservations, recentObservations } from "@/utils/research-store";
-import { evaluateStoredModel } from "@/utils/evaluation";
 import { evaluateLinkage } from "@/utils/linkage";
 import { cachedLinkageModel } from "@/utils/linkage-service";
 
@@ -30,7 +29,6 @@ export default async function ObservationsPage() {
     <ObservationsDashboard
       initialObservations={observations}
       legacyObservations={legacyObservations}
-      evaluation={evaluateStoredModel(observations)}
       linkageModel={linkageModel}
       linkageEvaluation={evaluateLinkage(observations)}
       archivedObservations={archived}

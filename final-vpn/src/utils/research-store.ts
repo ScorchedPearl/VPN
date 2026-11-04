@@ -142,6 +142,13 @@ async function ensureSchema(): Promise<void> {
 
     ALTER TABLE ${ARCHIVE_TABLE} ADD COLUMN IF NOT EXISTS vpn_assessment jsonb;
 
+    -- The prototype table only gains this app's verdict column; its rows stay as they are.
+    DO $$ BEGIN
+      IF to_regclass('${LEGACY_TABLE}') IS NOT NULL THEN
+        ALTER TABLE ${LEGACY_TABLE} ADD COLUMN IF NOT EXISTS vpn_assessment jsonb;
+      END IF;
+    END $$;
+
     CREATE INDEX IF NOT EXISTS vpn_linkage_archived_observations_batch_idx
       ON ${ARCHIVE_TABLE} (archived_at DESC, archive_batch_id);
 
@@ -224,7 +231,7 @@ export async function recentLegacyObservations(limit = 200): Promise<ResearchObs
   const safeLimit = Math.max(1, Math.min(1000, Math.floor(limit)));
   try {
     const result = await databasePool().query<ObservationRow>(`
-      SELECT ${COLUMNS}
+      SELECT ${COLUMNS}, vpn_assessment
         FROM ${LEGACY_TABLE}
        ORDER BY created_at DESC
        LIMIT $1
